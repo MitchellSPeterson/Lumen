@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T22:20:00Z",
+  "title": "Design system: Codebase Planner",
+  "extensions": {
+    "shadows": [{ "name": "dialog", "value": "0 18px 70px #31291c33", "purpose": "Protected dialog focus." }],
+    "motion": [{ "name": "inspector", "value": "200ms cubic-bezier(.16,1,.3,1)", "purpose": "Reveal detail editor with clip-path; disabled for reduced motion." }],
+    "breakpoints": [{ "name": "inspector-overlay", "value": "1050px" }, { "name": "compact-sidebar", "value": "760px" }]
+  },
+  "components": [{
+    "name": "Primary button", "kind": "button", "refersTo": "button-primary",
+    "description": "Create a project or item and commit dialog actions.",
+    "html": "<button class=\"primary-button\">Create project</button>",
+    "css": ".primary-button{background:#37322b;color:#fffdf7;border:0;border-radius:7px;padding:9px 12px;font:500 12px -apple-system,sans-serif}.primary-button:hover{background:#514539}.primary-button:focus-visible{outline:2px solid var(--focus,#8b4837);outline-offset:3px}"
+  }],
+  "narrative": {
+    "northStar": "Project structure beside the work.",
+    "overview": "Light Codex surfaces with Obsidian navigation and item relationships. Map, list, and editor share one model.",
+    "keyCharacteristics": ["Quiet warm surfaces", "Compact navigation", "Editable connected items"],
+    "rules": [{ "name": "Shared items", "body": "Every canvas operation has a list or editor equivalent.", "section": "components" }],
+    "dos": ["Expose save status and recovery.", "Use icons together with item titles."],
+    "donts": ["Do not hide editing behind canvas gestures.", "Do not turn metadata into decorative cards."]
+  }
+}

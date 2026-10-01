@@ -1,0 +1,33 @@
+{
+  "name": "codebase-planner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --configLoader runner",
+    "build": "tsc -b && vite build --configLoader runner",
+    "preview": "vite preview --host 127.0.0.1 --configLoader runner",
+    "test": "vitest run --configLoader runner",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.8",
+    "@tauri-apps/api": "^2.9.0",
+    "@xyflow/react": "^12.9.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0",
+    "@types/dagre": "^0.7.53",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}
