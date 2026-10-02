@@ -1,12 +1,19 @@
-.dialog:has(.settings-panel){width:680px}
+.settings-page{flex:1;min-height:0;overflow:auto;padding:32px clamp(20px,4vw,56px) 48px}
+.settings-page-heading{max-width:900px;margin:0 auto 32px}
+.settings-page-heading h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.035em}
+.settings-page-heading h1:focus{outline:none}
+.settings-page-heading p{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.settings-page .settings-panel{max-width:900px;margin:0 auto;grid-template-columns:170px minmax(0,1fr);gap:32px}
+.settings-page .settings-content{max-width:600px}
+.settings-page .settings-nav{align-self:start;position:sticky;top:0}
 .settings-panel{display:grid;grid-template-columns:150px minmax(0,1fr);gap:24px;min-height:320px}
 .settings-nav{display:flex;flex-direction:column;gap:5px;border-right:1px solid var(--line);padding-right:14px}
 .settings-nav button{padding:10px 11px;text-align:left;font-size:12px;border-radius:6px;color:var(--muted)}
 .settings-nav button:hover{background:var(--hover)}
 .settings-nav button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-text);font-weight:500}
 .settings-content{min-width:0;display:flex;flex-direction:column;gap:14px}
-.settings-content h3{margin:0;font-size:13px;font-weight:550}
-.settings-content h3:not(:first-child){padding-top:12px;border-top:1px solid var(--line)}
+.settings-content h2{margin:0;font-size:13px;font-weight:550}
+.settings-content h2:not(:first-child){padding-top:12px;border-top:1px solid var(--line)}
 .settings-content .appearance-field{margin-bottom:4px}
 .settings-content .form-field{margin:4px 0 0;gap:8px}
 .settings-content .form-field select{width:100%;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text);padding:10px;font-size:12px}
@@ -18,3 +25,5 @@
 @media(max-width:620px){.settings-panel{grid-template-columns:1fr;gap:18px}.settings-nav{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line);padding:0 0 12px}.settings-nav button{flex:1;white-space:nowrap;text-align:center}}
 
 .settings-advanced{border-top:1px solid var(--line);padding-top:14px}.settings-advanced>summary{cursor:pointer;font-size:12px;color:var(--muted)}.settings-advanced .form-field{margin:14px 0 10px}
+
+@media(max-width:760px){.settings-page{padding:24px 20px 36px}.settings-page-heading{margin-bottom:24px}.settings-page .settings-panel{grid-template-columns:1fr;gap:24px}.settings-page .settings-nav{position:static;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line);padding:0 0 12px}.settings-nav button{flex:1;text-align:center}.settings-buttons .secondary-button{white-space:normal}}

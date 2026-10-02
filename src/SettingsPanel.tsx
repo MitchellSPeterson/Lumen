@@ -31,7 +31,7 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <p className="form-hint">Changes apply immediately and stay on this device.</p>
       </>}
       {section === 'codex' && <>
-        <h3>ChatGPT connection</h3>
+        <h2>ChatGPT connection</h2>
         <div className="settings-account"><span className={`planner-composer__dot${planner.connection?.connected ? ' is-connected' : ''}`} aria-hidden="true" /><div><strong>{planner.connection?.connected ? 'Connected to Codex' : 'Codex isn’t connected'}</strong>{planner.connection?.connected && <span>{planner.connection.account}</span>}</div></div>
         <div className="settings-buttons">
           {planner.connection?.connected ? <button className="secondary-button" disabled={busy} onClick={() => void planner.disconnect()}>{planner.phase === 'signing-out' ? 'Signing out…' : 'Sign out'}</button> : <button className="primary-button" disabled={!native || busy} onClick={() => void planner.connect(true)}>{planner.phase === 'signing-in' ? 'Signing in…' : 'Continue with ChatGPT'}</button>}
@@ -45,12 +45,12 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <p className="form-hint">Leave empty for automatic discovery. Restart the app after changing this path.</p></details>
       </>}
       {section === 'general' && <>
-        <h3>Local workspace</h3>
+        <h2>Local workspace</h2>
         <p className="form-hint">Projects, items, links, and map positions save automatically on this device. Backups include planning data; appearance, model preferences, and credentials stay separate.</p>
         <div className="settings-buttons"><button className="secondary-button" disabled={backupBusy || busy || !canExport} onClick={() => onBackup('export')}>Export backup</button><button className="secondary-button" disabled={backupBusy || busy} onClick={() => onBackup('import')}>Import backup</button></div>
-        <h3>System dictation</h3>
+        <h2>System dictation</h2>
         <p className="form-hint">On macOS, enable Dictation in System Settings → Keyboard → Dictation. Focus a prompt and use your configured shortcut or Edit → Start Dictation. macOS handles speech recognition.</p>
-        <h3>About</h3><p className="form-hint">Codebase Planner · Version 0.1.0{!native && ' · Browser preview'}</p>
+        <h2>About</h2><p className="form-hint">Codebase Planner · Version 0.1.0{!native && ' · Browser preview'}</p>
       </>}
       {section === 'codex' && <><div className="planner-composer__status" role="status" aria-live="polite">{planner.message}</div>{planner.error && <p className="planner-composer__error" role="alert">{planner.error}</p>}</>}
     </div>
