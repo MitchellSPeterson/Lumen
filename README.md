@@ -18,6 +18,7 @@ For a browser preview, run `npm run dev` and open http://127.0.0.1:1420. Browser
 - Create a project, optionally associate a repository folder, and add a todo, feature, or bug.
 - Select an item in the outline, map, or list to edit its status, priority, tags, parent, and Markdown notes.
 - Add child todos with the item's plus button. Drag nodes to move them. Drag between handles to relate items. Double-click a map title to rename it.
+- Open **Settings** from the sidebar, header, or Cmd+, for appearance, ChatGPT/Codex connection, default model, executable path, backups, and dictation guidance. Preferences apply immediately and stay on this device.
 - Change hierarchy in the Parent selector. Collapse branches in the outline or map. Arrange recalculates positions; Fit view frames the visible map.
 - Search titles and notes; filter by type, status, priority, and tags. Cmd+N creates a todo; Cmd+K opens search and actions.
 - Export a JSON backup from the sidebar. Import creates independent project copies with new IDs.
@@ -28,7 +29,7 @@ The optional playground contains illustrative sample work. Repository associatio
 
 ## Plan with Codex
 
-In the desktop app, open a project and choose **Plan with AI**. Install Codex CLI if needed, then choose **Continue with ChatGPT** to connect your subscription in the system browser. This app registers its own connection; an existing Codex desktop sign-in is not automatically shared. Later, **Connect Codex** restores the saved connection. **Sign out** removes the local session and requests remote revocation; if revocation fails, disconnect the app in ChatGPT Settings. If the executable cannot be found, expand **Codex location** and enter its path.
+In the desktop app, open a project and choose **Plan with AI**. Install Codex CLI if needed, then open **Connection settings → Continue with ChatGPT** to connect your subscription in the system browser. This app registers its own connection; an existing Codex desktop sign-in is not automatically shared. The saved connection restores when Settings or the planner composer first opens. **Connect Codex** or **Reconnect** can retry it. **Sign out** removes the local session and requests remote revocation; if revocation fails, disconnect the app in ChatGPT Settings. If the executable cannot be found, set its path in **Settings → ChatGPT & Codex** and reconnect. This path and the default model stay remembered across app restarts; an empty path uses automatic discovery.
 
 Type an idea or focus the prompt field and use your configured macOS Dictation shortcut. Enable Dictation in System Settings → Keyboard → Dictation. Enter adds a newline; Generate plan or Cmd+Enter submits text. Speech recognition is handled by macOS. The packaged app exposes Edit → Start Dictation; live speech input still needs an on-device acceptance check. Browser preview displays the composer but cannot connect to Codex.
 

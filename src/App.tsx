@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Bug, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDot, Folder, FolderOpen, GitBranch, LayoutList, Link2, Loader2, Map as MapIcon, Moon, Palette, PanelLeftClose, PanelLeftOpen, PanelRightClose, Plus, Search, Settings2, Sparkles, Sun, Trash2, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Bug, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDot, Folder, FolderOpen, GitBranch, LayoutList, Link2, Loader2, Map as MapIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, Plus, Search, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { createItem, defaultView, descendants, importCopies, kindLabels, statusLabels, type ItemKind, type Priority, type Project, type ProjectView, type Status, type WorkItem } from './domain';
 import { chooseFolder, exportWorkspace, importWorkspace, inspectFolder, native } from './persistence';
@@ -7,9 +7,10 @@ import { useWorkspace } from './useWorkspace';
 import { demoWorkspace } from './demo';
 import MindMap from './MindMap';
 import { arrangeItems } from './mapLayout';
-import { accents, applyAppearance, readAppearance, saveAppearance, type Appearance } from './appearance';
+import { applyAppearance, readAppearance, saveAppearance, type Appearance } from './appearance';
 import { PlannerComposer } from './PlannerComposer';
 import { usePlanner } from './usePlanner';
+import { SettingsPanel } from './SettingsPanel';
 
 const kinds: ItemKind[] = ['todo', 'feature', 'bug'];
 const KindIcon = ({ kind, size = 15 }: { kind: ItemKind; size?: number }) => kind === 'bug' ? <Bug size={size} /> : kind === 'feature' ? <Sparkles size={size} /> : <CheckCircle2 size={size} />;
@@ -22,7 +23,7 @@ function Dialog({ title, children, close }: { title: string; children: ReactNode
   closeRef.current = close;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
-    (ref.current?.querySelector<HTMLElement>('input, textarea, select') ?? ref.current?.querySelector<HTMLElement>('button'))?.focus();
+    (ref.current?.querySelector<HTMLElement>('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') ?? ref.current?.querySelector<HTMLElement>('button'))?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
@@ -60,7 +61,10 @@ export default function App() {
   const [tagFilter, setTagFilter] = useState('');
   const [query, setQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showAppearance, setShowAppearance] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'appearance' | 'codex' | 'general'>('appearance');
+  const [settingsFromPlanner, setSettingsFromPlanner] = useState(false);
+  const connectionRestored = useRef(false);
   const [appearance, setAppearance] = useState(readAppearance);
   function changeAppearance(patch: Partial<Appearance>) {
     const next = { ...appearance, ...patch };
@@ -96,6 +100,21 @@ export default function App() {
     setSelectedId(ids[0] ?? null); setShowPlanner(false); setNotice(message);
     setKindFilter('all'); setStatusFilter('all'); setPriorityFilter('all'); setTagFilter(''); setQuery('');
   } });
+  function openSettings(section: 'appearance' | 'codex' | 'general' = 'appearance', fromPlanner = false) {
+    setSettingsSection(section); setSettingsFromPlanner(fromPlanner); setShowPlanner(false); setShowSettings(true);
+  }
+  function closeSettings() {
+    if (planner.phase === 'connecting' || planner.phase === 'signing-in') void planner.cancel();
+    setShowSettings(false);
+    if (settingsFromPlanner && project) setShowPlanner(true);
+  }
+  useEffect(() => {
+    if (native && loaded && (showSettings || showPlanner) && !connectionRestored.current) {
+      connectionRestored.current = true;
+      void planner.connect();
+    }
+  }, [loaded, showSettings, showPlanner]);
+
   function closePlanner() { if (planner.phase === 'saving') return; void planner.cancel(); setShowPlanner(false); }
 
   useEffect(() => { setShowPlanner(false); setSelectedId(null); setQuery(''); setKindFilter('all'); setStatusFilter('all'); setPriorityFilter('all'); setTagFilter(''); }, [project?.id]);
@@ -137,8 +156,9 @@ export default function App() {
   function collapse(id: string) { patchView({ collapsed: view.collapsed.includes(id) ? view.collapsed.filter(i => i !== id) : [...view.collapsed, id] }); }
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
-      if (showAppearance || showPlanner || event.isComposing || event.keyCode === 229) return;
+      if (showSettings || showPlanner || event.isComposing || event.keyCode === 229) return;
       if (event.metaKey || event.ctrlKey) {
+        if (event.key === ',' && !showPalette && !showProjectForm && !deleting) { event.preventDefault(); openSettings(); }
         if (event.key.toLowerCase() === 'k') { event.preventDefault(); setShowPalette(v => !v); setPaletteQuery(''); }
         if (event.key.toLowerCase() === 'n' && !showProjectForm && !deleting) { event.preventDefault(); addItem(); }
       }
@@ -188,11 +208,11 @@ export default function App() {
       <div className="section-label"><span>Projects</span><button className="icon-button" aria-label="Create project" onClick={() => openProjectForm()}><Plus size={14} /></button></div>
       <div className="project-list">{workspace.projects.map(p => <button className={`project-row ${p.id === project?.id ? 'active' : ''}`} key={p.id} onClick={() => update(w => ({ ...w, activeProjectId: p.id }))}><Folder size={16} /><span>{p.name}</span>{p.id === project?.id && <span className="active-dot" />}</button>)}</div>
       {project && <><div className="section-label"><span>Workspace</span></div><nav className="kind-nav" aria-label="Item types"><button className={kindFilter === 'all' ? 'active' : ''} onClick={() => setKindFilter('all')}><GitBranch size={16} /><span>All items</span><span className="count">{items.length}</span></button>{kinds.map(kind => <button key={kind} className={kindFilter === kind ? 'active' : ''} onClick={() => setKindFilter(kind)}><KindIcon kind={kind} /><span>{kind === 'todo' ? 'Todos' : kind === 'feature' ? 'Features' : 'Bugs'}</span><span className="count">{items.filter(i => i.kind === kind).length}</span></button>)}</nav><div className="section-label tree-label"><span>Project outline</span><button className="icon-button" aria-label="Add top-level item" onClick={() => addItem()}><Plus size={14} /></button></div><div className="project-tree">{items.length ? tree(null) : <p className="sidebar-hint">Your ideas will take shape here.</p>}</div></>}
-      <div className="sidebar-bottom"><div className="backup-actions"><button onClick={() => setShowAppearance(true)}><Palette size={14} />Appearance</button><button disabled={busy || !workspace.projects.length} onClick={() => void runBackup('export')}><ArrowUpFromLine size={14} />Export backup</button><button disabled={busy} onClick={() => void runBackup('import')}><ArrowDownToLine size={14} />Import backup</button></div><div className="local-label"><span className="local-dot" />{native ? 'Local workspace' : 'Browser preview'}<span>v0.1</span></div></div>
+      <div className="sidebar-bottom"><div className="backup-actions"><button onClick={() => openSettings()}><Settings2 size={14} />Settings</button><button disabled={busy || !workspace.projects.length} onClick={() => void runBackup('export')}><ArrowUpFromLine size={14} />Export backup</button><button disabled={busy} onClick={() => void runBackup('import')}><ArrowDownToLine size={14} />Import backup</button></div><div className="local-label"><span className="local-dot" />{native ? 'Local workspace' : 'Browser preview'}<span>v0.1</span></div></div>
     </aside>
 
     <main className="main">
-      <header className="workspace-header"><div className="breadcrumb">{!sidebarOpen && <button className="icon-button" aria-label="Show sidebar" onClick={() => setSidebarOpen(true)}><PanelLeftOpen size={18} /></button>}<Folder size={16} /><span>{project?.name ?? 'Your workspace'}</span>{project && <><ChevronRight size={14} /><span className="muted">{view.mode === 'map' ? 'Mind map' : 'List'}</span></>}</div><div className="header-actions"><button className="icon-button" aria-label="Appearance" title="Appearance" onClick={() => setShowAppearance(true)}><Palette size={17} /></button><span className={`save-state ${saveStatus}`} title={saveError}>{saveStatus === 'saving' ? <Loader2 size={13} className="spin" /> : saveStatus === 'saved' ? <Check size={13} /> : <Circle size={10} />} {saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Save failed' : 'Unsaved'}</span>{project && <button className="icon-button" aria-label="Project settings" onClick={() => openProjectForm(project)}><Settings2 size={17} /></button>}</div></header>
+      <header className="workspace-header"><div className="breadcrumb">{!sidebarOpen && <button className="icon-button" aria-label="Show sidebar" onClick={() => setSidebarOpen(true)}><PanelLeftOpen size={18} /></button>}<Folder size={16} /><span>{project?.name ?? 'Your workspace'}</span>{project && <><ChevronRight size={14} /><span className="muted">{view.mode === 'map' ? 'Mind map' : 'List'}</span></>}</div><div className="header-actions"><button className="icon-button" aria-label="Settings" title="Settings (⌘ ,)" onClick={() => openSettings()}><Settings2 size={17} /></button><span className={`save-state ${saveStatus}`} title={saveError}>{saveStatus === 'saving' ? <Loader2 size={13} className="spin" /> : saveStatus === 'saved' ? <Check size={13} /> : <Circle size={10} />} {saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Save failed' : 'Unsaved'}</span>{project && <button className="icon-button" aria-label="Project settings" onClick={() => openProjectForm(project)}><Settings2 size={17} /></button>}</div></header>
       {saveError && <div className="error-banner" role="alert"><span>Changes haven't saved. {saveError}</span><button onClick={() => void flush().catch(() => {})}>Retry save</button></div>}
       {missingFolder && <div className="folder-banner"><FolderOpen size={15} /><span>Repository folder is missing. Your planning data is still available.</span><button onClick={() => openProjectForm(project)}>Update folder</button></div>}
       {!project ? <div className="welcome"><div className="welcome-diagram" aria-hidden="true"><div className="welcome-root"><GitBranch size={25} /></div><div className="welcome-lines" /><div className="welcome-leaves"><span><Sparkles size={20} /></span><span><CheckCircle2 size={20} /></span><span><Bug size={20} /></span></div></div><h1>A little structure.<br />A clearer next step.</h1><p>Give your codebase a home for features, todos, and bugs.<br />Connect the big picture to the work in front of you.</p><button className="primary-button" onClick={() => openProjectForm()}><Plus size={17} />Create project</button><button className="text-button" onClick={() => update(() => demoWorkspace())}>Explore a demo project <ArrowUpRight size={14} /></button><div className="welcome-footnote"><span className="local-dot" />{native ? 'Stored on your Mac. Ready without an internet connection.' : 'Browser preview uses local storage. Desktop app uses SQLite.'}</div></div> : <>
@@ -213,8 +233,8 @@ export default function App() {
       <button className="add-child-button" onClick={() => addItem('todo', selected.id)}><Plus size={15} />Add child todo</button><div className="item-metadata">Updated {new Date(selected.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div><button className="delete-button" onClick={() => setDeleting({ type: 'item', id: selected.id, title: selected.title })}><Trash2 size={14} />Delete item</button>
     </div></aside>}
 
-    {showPlanner && project && <Dialog title={`Plan ${project.name}`} close={closePlanner}><PlannerComposer native={native} connection={planner.connection} phase={planner.phase} message={planner.message} error={planner.error} prompt={planner.prompt} model={planner.model} executable={planner.executable} onPromptChange={planner.setPrompt} onModelChange={planner.setModel} onExecutableChange={planner.setExecutable} onConnect={() => void planner.connect()} onDisconnect={() => void planner.disconnect()} onSignIn={() => void planner.connect(true)} onGenerate={() => void planner.generate()} onCancel={() => void planner.cancel()} onRetrySave={saveError ? () => void planner.retrySave() : undefined} /></Dialog>}
-    {showAppearance && <Dialog title="Appearance" close={() => setShowAppearance(false)}><fieldset className="appearance-field"><legend>Mode</legend><div className="appearance-modes">{(['light', 'dark'] as const).map(mode => <button key={mode} className={appearance.mode === mode ? 'active' : ''} aria-pressed={appearance.mode === mode} onClick={() => changeAppearance({ mode })}>{mode === 'light' ? <Sun size={17} /> : <Moon size={17} />}{mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></fieldset><fieldset className="appearance-field"><legend>Accent color</legend><div className="accent-options">{accents.map(color => <button key={color.id} data-accent={color.id} className="accent-option" aria-pressed={appearance.accent === color.id} onClick={() => changeAppearance({ accent: color.id })}><span className="accent-swatch" aria-hidden="true">{appearance.accent === color.id && <Check size={16} />}</span><span>{color.label}</span></button>)}</div></fieldset><p className="form-hint">Changes apply immediately and stay on this device.</p></Dialog>}
+    {showPlanner && project && <Dialog title={`Plan ${project.name}`} close={closePlanner}><PlannerComposer native={native} connection={planner.connection} phase={planner.phase} message={planner.message} error={planner.error} prompt={planner.prompt} model={planner.model} onPromptChange={planner.setPrompt} onModelChange={planner.setModel} onOpenSettings={() => openSettings('codex', true)} onGenerate={() => void planner.generate()} onCancel={() => void planner.cancel()} onRetrySave={saveError ? () => void planner.retrySave() : undefined} /></Dialog>}
+    {showSettings && <Dialog title="Settings" close={closeSettings}><SettingsPanel appearance={appearance} onAppearance={changeAppearance} planner={planner} native={native} initialSection={settingsSection} backupBusy={busy} canExport={!!workspace.projects.length} onBackup={action => { setSettingsFromPlanner(false); setShowSettings(false); void runBackup(action); }} /></Dialog>}
     {showProjectForm && <Dialog title={editingProject ? 'Project settings' : 'Create project'} close={() => setShowProjectForm(false)}><form onSubmit={e => { e.preventDefault(); if (!projectName.trim()) return; const id = editingProject ?? crypto.randomUUID(); update(w => ({ ...w, projects: editingProject ? w.projects.map(p => p.id === id ? { ...p, name: projectName.trim(), folder: projectFolder } : p) : [...w.projects, { id, name: projectName.trim(), folder: projectFolder, createdAt: new Date().toISOString() }], activeProjectId: id, views: { ...w.views, [id]: w.views[id] ?? defaultView() } })); setShowProjectForm(false); }}><label className="form-field">Project name<input required maxLength={200} placeholder="e.g. My next great app" value={projectName} onChange={e => setProjectName(e.target.value)} /></label><label className="form-field">Repository folder<span className="folder-picker"><input aria-label="Repository folder" placeholder={native ? 'Choose a local repository' : 'Optional path for browser preview'} value={projectFolder} readOnly={native} onChange={e => setProjectFolder(e.target.value)} /><button type="button" className="secondary-button" aria-label="Choose repository folder" disabled={!native} onClick={async () => { try { const folder = await chooseFolder(); if (folder) { setProjectFolder(folder); if (!projectName) setProjectName(folder.split('/').filter(Boolean).at(-1) ?? ''); } } catch (error) { setNotice(errorText(error)); } }}><FolderOpen size={15} />Choose</button></span></label><p className="form-hint">Folder association is optional. Your repository files stay untouched.</p><div className="dialog-actions">{editingProject && <button type="button" className="delete-button" onClick={() => { setShowProjectForm(false); setDeleting({ type: 'project', id: editingProject, title: projectName }); }}><Trash2 size={14} />Delete project</button>}<button className="primary-button" disabled={!projectName.trim()}>{editingProject ? 'Save settings' : 'Create project'}</button></div></form></Dialog>}
     {deleting && <Dialog title={deleting.type === 'project' ? 'Delete project?' : 'Delete this branch?'} close={() => setDeleting(null)}><p className="delete-description">“{deleting.title}” and {deleting.type === 'project' ? workspace.items.filter(i => i.projectId === deleting.id).length : descendants(workspace.items, deleting.id).size} {deleting.type === 'project' ? 'items' : 'descendant items'} will be permanently deleted, including their related links. Export a backup first if you need a copy.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setDeleting(null)}>Cancel</button><button className="danger-button" onClick={deleteConfirmed}>Delete {deleting.type === 'project' ? 'project' : 'branch'}</button></div></Dialog>}
     {showPalette && <Dialog title="Search & actions" close={() => setShowPalette(false)}><div className="palette-input"><Search size={18} /><input aria-label="Search actions and items" placeholder="Search this project or choose an action…" value={paletteQuery} onChange={e => setPaletteQuery(e.target.value)} /></div><div className="palette-results">{!paletteQuery && <><button onClick={() => { setShowPalette(false); addItem(); }}><Plus size={16} /><span>New todo</span><kbd>⌘ N</kbd></button><button onClick={() => { setShowPalette(false); openProjectForm(); }}><Folder size={16} />Create project</button>{project && <button onClick={() => { setShowPalette(false); patchView({ mode: view.mode === 'map' ? 'list' : 'map' }); }}><LayoutList size={16} />Switch to {view.mode === 'map' ? 'list' : 'mind map'}</button>}</>}{items.filter(i => `${i.title} ${i.notes}`.toLowerCase().includes(paletteQuery.toLowerCase())).slice(0, 40).map(i => <button key={i.id} onClick={() => { setSelectedId(i.id); setShowPalette(false); }}><KindIcon kind={i.kind} /><span>{i.title}</span></button>)}{paletteQuery && !items.some(i => `${i.title} ${i.notes}`.toLowerCase().includes(paletteQuery.toLowerCase())) && <p>No matching items in this project.</p>}</div></Dialog>}

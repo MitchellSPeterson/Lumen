@@ -10,14 +10,10 @@ type PlannerComposerProps = {
   error: string;
   prompt: string;
   model: string;
-  executable: string;
   native: boolean;
   onPromptChange(value: string): void;
   onModelChange(value: string): void;
-  onExecutableChange(value: string): void;
-  onConnect(): void;
-  onDisconnect(): void;
-  onSignIn(): void;
+  onOpenSettings(): void;
   onGenerate(): void;
   onCancel(): void;
   onRetrySave?: () => void;
@@ -30,14 +26,10 @@ export function PlannerComposer({
   error,
   prompt,
   model,
-  executable,
   native,
   onPromptChange,
   onModelChange,
-  onExecutableChange,
-  onConnect,
-  onDisconnect,
-  onSignIn,
+  onOpenSettings,
   onGenerate,
   onCancel,
   onRetrySave,
@@ -75,23 +67,7 @@ export function PlannerComposer({
             <span className="planner-composer__account">{connection.account}</span>
           )}
         </div>
-        {connection?.connected ? (
-          <div className="planner-composer__connection-actions">
-          <button type="button" className="secondary-button planner-composer__connect" onClick={onConnect} disabled={!native || busy}>
-            {phase === 'connecting' ? 'Connecting…' : 'Reconnect'}
-          </button>
-          <button type="button" className="planner-composer__sign-in" onClick={onDisconnect} disabled={!native || busy}>Sign out</button>
-          </div>
-        ) : (
-          <div className="planner-composer__connection-actions">
-            <button type="button" className="secondary-button" onClick={onConnect} disabled={!native || busy}>
-              {phase === 'connecting' ? 'Connecting…' : 'Connect Codex'}
-            </button>
-            <button type="button" className="planner-composer__sign-in" onClick={onSignIn} disabled={!native || busy}>
-              {phase === 'signing-in' ? 'Opening sign-in…' : 'Continue with ChatGPT'}
-            </button>
-          </div>
-        )}
+        <button type="button" className="secondary-button" onClick={onOpenSettings} disabled={busy}>Connection settings</button>
       </div>
 
       {!native && <p className="planner-composer__notice" role="status">Open the desktop app to connect Codex.</p>}
@@ -131,21 +107,7 @@ export function PlannerComposer({
       </div>
       {connection?.connected && !modelAvailable && <p className="planner-composer__hint">Choose an available model. Model changes are always yours to select.</p>}
 
-      <details className="planner-composer__location">
-        <summary>Codex location</summary>
-        <label className="planner-composer__label" htmlFor="planner-composer-executable">Codex executable path</label>
-        <input
-          id="planner-composer-executable"
-          className="planner-composer__input"
-          value={executable}
-          onChange={event => onExecutableChange(event.currentTarget.value)}
-          placeholder="Leave blank to use the default location"
-          autoComplete="off"
-          spellCheck={false}
-          disabled={busy}
-        />
-        <p className="planner-composer__hint">Set a path if Codex can’t be found when the app opens from Finder.</p>
-      </details>
+
 
       <div className="planner-composer__status" aria-live="polite" aria-atomic="true">
         {message && <span>{message}</span>}

@@ -14,9 +14,13 @@ interface Options {
   onCreated: (ids: string[], message: string) => void;
 }
 const preferenceKey = 'codebase-planner-model';
+const executablePreferenceKey = 'codebase-planner-executable';
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 function rememberedModel() {
   try { return localStorage.getItem(preferenceKey) ?? ''; } catch { return ''; }
+}
+function rememberedExecutable() {
+  try { return localStorage.getItem(executablePreferenceKey) ?? ''; } catch { return ''; }
 }
 
 export function usePlanner(options: Options) {
@@ -28,7 +32,7 @@ export function usePlanner(options: Options) {
   const [error, setError] = useState('');
   const [prompt, setPrompt] = useState('');
   const [model, setModelValue] = useState(rememberedModel);
-  const [executable, setExecutable] = useState('');
+  const [executable, setExecutableValue] = useState(rememberedExecutable);
   const [batch, setBatch] = useState<PlannerBatch | null>(null);
   const operation = useRef<{ id: string; kind: 'connect' | 'generate' | 'save'; cancelled: boolean } | null>(null);
   const mounted = useRef(true);
@@ -37,6 +41,10 @@ export function usePlanner(options: Options) {
   function setModel(value: string) {
     setModelValue(value);
     try { localStorage.setItem(preferenceKey, value); } catch { /* Selection still works for this session. */ }
+  }
+  function setExecutable(value: string) {
+    setExecutableValue(value);
+    try { localStorage.setItem(executablePreferenceKey, value); } catch { /* Selection still works for this session. */ }
   }
   async function cancel() {
     const active = operation.current;

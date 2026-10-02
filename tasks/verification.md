@@ -40,3 +40,11 @@ User encountered `invalid_json_schema`: parent reference discriminators lacked a
 Restored the user’s dashboard prompt after loading the corrected build, reconnected the existing app-owned session, and retried with `gpt-6-luna`. Request succeeded: one analytics-dashboard feature with four nested todos, shown in the map; Save status reports Saved locally and Undo AI batch is available. Read-only SQLite verification confirms all five records are durable. No extra inference was issued. Live spoken Dictation, cancellation race, failed-save retry, and Undo remain pending.
 
 Successful map screenshot: `/Users/mitchell/.codex/visualizations/2026/10/02/01a0fa4c-b65f-7af0-be5b-895628ada82c/dashboard-plan-fixed.png`. Earlier pending-live notes describe the initial build; this live correction verifies Luna inference and saved typed-prompt creation.
+
+## Settings panel acceptance
+
+Consolidated Appearance, ChatGPT & Codex, and General sections behind sidebar/header Settings and Cmd+Comma. Authentication actions moved from the planner composer; Connection settings opens the panel and returns to the preserved prompt. Default model stays remembered, and optional executable path now persists locally. Clearing the path and reconnecting resets native cached discovery. Credentials remain native-only, separate from preferences and backups.
+
+`npm test` (28 tests), production TypeScript build, Rust library tests (10 tests), and packaged macOS build pass. Native UI confirms all three sections, saved account/model restoration, custom-path reconnect, theme/path retention across app restart, automatic-discovery reconnect after clearing the path, and prompt preservation on Settings round trip. Keyboard Cmd+Comma opens Settings; Shift+Tab from Close wraps to the last appearance control, then Tab returns to Close. Restored original light/blue appearance and empty path after verification. Existing planner item count stayed at 10. No new inference, sign-out, backup import/export, or microphone action was performed.
+
+Screenshot: `/Users/mitchell/.codex/visualizations/2026/10/02/01a0fa4c-b65f-7af0-be5b-895628ada82c/settings-panel.png`.

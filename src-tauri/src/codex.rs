@@ -799,6 +799,9 @@ fn connect(
         .lock()
         .map_err(|_| "ChatGPT session is unavailable.")?;
     let result = (|| {
+        if selected.is_none() {
+            state.executable.lock().map_err(|_| "Codex state is unavailable.")?.take();
+        }
         let path = executable(state, selected)?;
         let mut credential = if sign_in {
             Some(authorize(app, &cancelled)?)
