@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowUp, ArrowDown, ArrowUpRight, Bug, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, Columns3, Folder, Inbox, Lightbulb, FolderOpen, GitBranch, LayoutList, Link2, Loader2, Map as MapIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, Plus, Search, Settings2, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpRight, Bug, CheckCircle2, ChevronDown, ChevronRight, Columns3, Folder, Inbox, Lightbulb, FolderOpen, GitBranch, LayoutList, Link2, Loader2, Map as MapIcon, Maximize2, Mic, Minimize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, Plus, Search, Settings2, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { captureIdea, createItem, defaultView, descendants, groupItems, importCopies, itemSearchText, kindLabels, matchingWithAncestors, moveItem, planningLaneLabels, reorderItem, statusLabels, type ItemKind, type PlanningLane, type Priority, type Project, type ProjectView, type Status, type WorkItem } from './domain';
 import { chooseFolder, exportWorkspace, importWorkspace, inspectFolder, native } from './persistence';
@@ -37,7 +37,7 @@ function Dialog({ title, children, close }: { title: string; children: ReactNode
       }
     };
     document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('keydown', key); if (previous?.isConnected) previous.focus(); else document.querySelector<HTMLElement>('.new-item-wrap button, .welcome .primary-button, .sidebar-search')?.focus(); };
+    return () => { document.removeEventListener('keydown', key); if (previous?.isConnected) previous.focus(); else document.querySelector<HTMLElement>('.new-item-wrap button, .welcome .primary-button, .sidebar-toggle')?.focus(); };
   }, []);
   return <div className="dialog-shade" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}><div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-heading"><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={18} /></button></div>{children}</div></div>;
 }
@@ -57,13 +57,18 @@ function TitleEditor({ title, autoFocus, onChange }: { title: string; autoFocus:
 }
 
 export default function App() {
-  const { workspace, update, loaded, loadError, saveError, saveStatus, flush, load, current } = useWorkspace();
+  const { workspace, update, loaded, loadError, saveError, flush, load, current } = useWorkspace();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  const [lastSelected, setLastSelected] = useState<WorkItem | null>(null);
   const [kindFilter, setKindFilter] = useState<ItemKind | 'all'>('all');
   const [inboxOnly, setInboxOnly] = useState(false);
   const [planningFilter, setPlanningFilter] = useState<PlanningLane | 'all'>('all');
   const [captureText, setCaptureText] = useState('');
-  const captureRef = useRef<HTMLInputElement>(null);
+  const [showCapture, setShowCapture] = useState(false);
+  const captureRef = useRef<HTMLTextAreaElement>(null);
+  const captureDialogRef = useRef<HTMLDivElement>(null);
+  const captureTriggerRef = useRef<HTMLElement | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [focusTitleId, setFocusTitleId] = useState<string | null>(null);
   const [capturedId, setCapturedId] = useState<string | null>(null);
@@ -75,7 +80,6 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [tagFilter, setTagFilter] = useState('');
-  const [query, setQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 760px)');
@@ -96,7 +100,6 @@ export default function App() {
     }
   }, [showSettings]);
   const [settingsSection, setSettingsSection] = useState<'appearance' | 'codex' | 'general'>('appearance');
-  const [settingsFromPlanner, setSettingsFromPlanner] = useState(false);
   const connectionRestored = useRef(false);
   const [appearance, setAppearance] = useState(readAppearance);
   function changeAppearance(patch: Partial<Appearance>) {
@@ -110,6 +113,9 @@ export default function App() {
   const [projectFolder, setProjectFolder] = useState('');
   const [showPalette, setShowPalette] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
+  const paletteRef = useRef<HTMLDivElement>(null);
+  const paletteInputRef = useRef<HTMLInputElement>(null);
+  const paletteTriggerRef = useRef<HTMLElement | null>(null);
   const [previewNotes, setPreviewNotes] = useState(false);
   const [relatedTarget, setRelatedTarget] = useState('');
   const [deleting, setDeleting] = useState<{ type: 'item' | 'project'; id: string; title: string } | null>(null);
@@ -123,16 +129,26 @@ export default function App() {
   const links = workspace.links.filter(l => l.projectId === project?.id);
   const view = project ? workspace.views[project.id] ?? defaultView() : defaultView();
   const selected = items.find(i => i.id === selectedId);
+  const inspectorOpen = !!selected && !showSettings;
+  const inspectorItem = selected ?? lastSelected;
+  const expanded = inspectorOpen && inspectorExpanded;
+  useEffect(() => { if (selected) setLastSelected(selected); }, [selected]);
+  useEffect(() => { if (!inspectorOpen) setInspectorExpanded(false); }, [inspectorOpen, project?.id]);
+  function closeInspector() {
+    if (!inspectorOpen) return;
+    setSelectedId(null);
+    document.querySelector<HTMLElement>('.sidebar-toggle')?.focus();
+  }
   const invalidParents = useMemo(() => selected ? new Set([selected.id, ...descendants(items, selected.id)]) : new Set<string>(), [items, selected?.id]);
   const tags = [...new Set(items.flatMap(i => i.tags))].sort();
-  const matching = items.filter(i => (!inboxOnly || (i.kind === 'idea' && i.parentId === null)) && (planningFilter === 'all' || i.planningLane === planningFilter) && (kindFilter === 'all' || i.kind === kindFilter) && (statusFilter === 'all' || i.status === statusFilter) && (priorityFilter === 'all' || i.priority === priorityFilter) && (!tagFilter || i.tags.includes(tagFilter)) && itemSearchText(i).toLowerCase().includes(query.toLowerCase()));
+  const matching = items.filter(i => (!inboxOnly || (i.kind === 'idea' && i.parentId === null)) && (planningFilter === 'all' || i.planningLane === planningFilter) && (kindFilter === 'all' || i.kind === kindFilter) && (statusFilter === 'all' || i.status === statusFilter) && (priorityFilter === 'all' || i.priority === priorityFilter) && (!tagFilter || i.tags.includes(tagFilter)));
   const matchingIds = useMemo(() => new Set(matching.map(i => i.id)), [matching.map(i => i.id).join(',')]);
   const inboxEmpty = !items.some(item => item.kind === 'idea' && item.parentId === null);
   const filterCount = Number(statusFilter !== 'all') + Number(priorityFilter !== 'all') + Number(!!tagFilter) + Number(planningFilter !== 'all');
   const sectionTitle = inboxOnly ? 'Inbox' : kindFilter !== 'all' ? ({ feature: 'Features', todo: 'Tasks', bug: 'Bugs', idea: 'Ideas' })[kindFilter] : planningFilter !== 'all' ? (planningFilter ? planningLaneLabels[planningFilter] : 'Unplanned') : 'All items';
   const sectionHint = inboxOnly ? 'Capture a thought. Turn it into a feature or task when you’re ready.' : planningFilter === 'now' ? 'The work you’re focusing on today.' : planningFilter === 'next' ? 'What you want to tackle next.' : planningFilter === 'later' ? 'Good ideas for another time.' : 'Collect ideas, shape features, and decide what comes next.';
   const completion = items.filter(i => i.kind !== 'idea' && i.status === 'done').length;
-  const filtered = inboxOnly || kindFilter !== 'all' || statusFilter !== 'all' || priorityFilter !== 'all' || planningFilter !== 'all' || !!tagFilter || !!query;
+  const filtered = inboxOnly || kindFilter !== 'all' || statusFilter !== 'all' || priorityFilter !== 'all' || planningFilter !== 'all' || !!tagFilter;
   const checkedItems = items.filter(item => checkedIds.has(item.id));
   const canGroup = checkedItems.length >= 2 && checkedItems.length === checkedIds.size && checkedItems.every(item => item.parentId === checkedItems[0]?.parentId);
   const planner = usePlanner({ workspace, projectId: project?.id ?? null, selectedId, current, update, flush, saveError, onCreated: (ids, message) => {
@@ -140,17 +156,15 @@ export default function App() {
     setSelectedId(ids[0] ?? selectedId); setShowPlanner(false); setNotice(message);
     clearFilters();
   } });
-  function openSettings(section: 'appearance' | 'codex' | 'general' = 'appearance', fromPlanner = false) {
+  function openSettings(section: 'appearance' | 'codex' | 'general' = 'appearance') {
     settingsTriggerRef.current = document.activeElement as HTMLElement;
     setShowNewMenu(false);
-    setSettingsSection(section); setSettingsFromPlanner(fromPlanner); setShowPlanner(false); setShowSettings(true);
+    setSettingsSection(section); setShowPlanner(false); setShowSettings(true);
   }
-  function closeSettings(returnToPlanner = true) {
+  function closeSettings(restoreFocus = true) {
     if (showSettings && (planner.phase === 'connecting' || planner.phase === 'signing-in')) void planner.cancel();
-    restoreSettingsFocus.current = showSettings && returnToPlanner && !settingsFromPlanner;
+    restoreSettingsFocus.current = showSettings && restoreFocus;
     setShowSettings(false);
-    if (showSettings && returnToPlanner && settingsFromPlanner && project) setShowPlanner(true);
-    setSettingsFromPlanner(false);
   }
   useEffect(() => {
     if (native && loaded && (showSettings || showPlanner) && !connectionRestored.current) {
@@ -161,8 +175,49 @@ export default function App() {
 
   function closePlanner() { if (planner.phase === 'saving') return; void planner.cancel(); planner.discard(); setShowPlanner(false); }
 
-  function clearFilters() { if (window.matchMedia('(max-width: 760px)').matches) setSidebarOpen(false); setSelecting(false); setCheckedIds(new Set()); setInboxOnly(false); setPlanningFilter('all'); setKindFilter('all'); setStatusFilter('all'); setPriorityFilter('all'); setTagFilter(''); setQuery(''); }
+  function clearFilters() { if (window.matchMedia('(max-width: 760px)').matches) setSidebarOpen(false); setSelecting(false); setCheckedIds(new Set()); setInboxOnly(false); setPlanningFilter('all'); setKindFilter('all'); setStatusFilter('all'); setPriorityFilter('all'); setTagFilter(''); }
   function openPlanner(action: PlannerAction = 'project') { planner.setAction(action); setShowNewMenu(false); setShowPlanner(true); }
+  function openCapture() {
+    if (showCapture) { captureRef.current?.focus(); return; }
+    if (!project) { openProjectForm(); return; }
+    captureTriggerRef.current = document.activeElement as HTMLElement;
+    setShowNewMenu(false); setShowCapture(true);
+  }
+  function openPalette() {
+    paletteTriggerRef.current = document.activeElement as HTMLElement;
+    setShowCapture(false); setShowNewMenu(false); setPaletteQuery(''); setShowPalette(true);
+  }
+  function closePalette() {
+    setShowPalette(false);
+    const trigger = paletteTriggerRef.current;
+    requestAnimationFrame(() => {
+      if (paletteRef.current) return;
+      [trigger, document.querySelector<HTMLElement>('.sidebar-toggle')].find(node => node?.isConnected && node !== document.body && node !== document.documentElement && !node.closest('[inert], [aria-hidden="true"]') && node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible')?.focus();
+    });
+  }
+  useEffect(() => {
+    if (!showPalette) return;
+    const frame = requestAnimationFrame(() => paletteInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [showPalette]);
+  function closeCapture(restoreFocus = true) {
+    setShowCapture(false);
+    if (restoreFocus) {
+      const trigger = captureTriggerRef.current;
+      requestAnimationFrame(() => {
+        if (captureDialogRef.current) return;
+        [trigger, ...document.querySelectorAll<HTMLElement>('.new-item-button, .sidebar-toggle')].find(node => node?.isConnected && !node.closest('[inert], [aria-hidden="true"]') && node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible')?.focus();
+      });
+    }
+  }
+  useEffect(() => {
+    if (!showCapture) return;
+    const frame = requestAnimationFrame(() => captureRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [showCapture]);
+  useEffect(() => {
+    if (showSettings || showPlanner || showPalette || showProjectForm || showGroupForm || deleting) setShowCapture(false);
+  }, [showSettings, showPlanner, showPalette, showProjectForm, showGroupForm, deleting]);
   function capture() {
     if (!project || !captureText.trim()) return;
     try {
@@ -170,7 +225,7 @@ export default function App() {
       update(w => { const result = captureIdea(w, project.id, captureText); itemId = result.itemId; return result.workspace; });
       setCaptureText(''); clearFilters(); setInboxOnly(true); patchView({ mode: 'outline' }); setSelectedId(null); setCapturedId(itemId); setNotice('Idea saved to Inbox.');
       setRevealedBatch({ projectId: project.id, ids: [itemId] });
-      captureRef.current?.focus();
+      closeCapture();
     } catch (error) { setNotice(errorText(error)); }
   }
   function move(id: string, parentId: string | null, beforeId?: string | null) {
@@ -181,13 +236,15 @@ export default function App() {
     try { update(w => reorderItem(w, id, direction)); } catch (error) { setNotice(errorText(error)); }
   }
 
-  useEffect(() => { setShowPlanner(false); setSelectedId(null); clearFilters(); setCheckedIds(new Set()); setCaptureText(''); setShowGroupForm(false); }, [project?.id]);
+  useEffect(() => { setShowPlanner(false); setSelectedId(null); clearFilters(); setCheckedIds(new Set()); setCaptureText(''); setShowCapture(false); setShowGroupForm(false); }, [project?.id]);
   useEffect(() => { setSelecting(false); setCheckedIds(new Set()); }, [project?.id, view.mode]);
   useEffect(() => {
     const keyboard = () => { document.documentElement.dataset.input = 'keyboard'; };
     const dismiss = (event: PointerEvent) => {
       document.documentElement.dataset.input = 'pointer';
       if (!newMenuRef.current?.contains(event.target as Node)) setShowNewMenu(false);
+      if (!captureDialogRef.current?.contains(event.target as Node)) setShowCapture(false);
+      if (!paletteRef.current?.contains(event.target as Node)) setShowPalette(false);
       if (!filtersRef.current?.contains(event.target as Node) && filtersRef.current) filtersRef.current.open = false;
     };
     document.addEventListener('pointerdown', dismiss);
@@ -235,10 +292,10 @@ export default function App() {
       if (showSettings || showPlanner || showGroupForm || event.isComposing || event.keyCode === 229) return;
       if (event.metaKey || event.ctrlKey) {
         if (event.key === ',' && !showPalette && !showProjectForm && !deleting) { event.preventDefault(); openSettings(); }
-        if (event.key.toLowerCase() === 'k') { event.preventDefault(); setShowPalette(v => !v); setPaletteQuery(''); }
-        if (event.key.toLowerCase() === 'n' && !showProjectForm && !showPalette && !showGroupForm && !deleting) { event.preventDefault(); if (project) captureRef.current?.focus(); else openProjectForm(); }
+        if (event.key.toLowerCase() === 'k' && !showProjectForm && !deleting) { event.preventDefault(); if (showPalette) closePalette(); else openPalette(); }
+        if (event.key.toLowerCase() === 'n' && !showProjectForm && !showPalette && !showGroupForm && !deleting) { event.preventDefault(); openCapture(); }
       }
-      if (event.key === 'Escape') { if (filtersRef.current?.open) { filtersRef.current.open = false; filtersRef.current.querySelector('summary')?.focus(); return; } if (showNewMenu) { setShowNewMenu(false); newMenuRef.current?.querySelector('button')?.focus(); return; } setShowNewMenu(false); if (!showPalette && !showProjectForm && !deleting) setSelectedId(null); }
+      if (event.key === 'Escape') { if (showPalette) { event.preventDefault(); closePalette(); return; } if (showCapture) { event.preventDefault(); closeCapture(); return; } if (filtersRef.current?.open) { filtersRef.current.open = false; filtersRef.current.querySelector('summary')?.focus(); return; } if (showNewMenu) { setShowNewMenu(false); newMenuRef.current?.querySelector('button')?.focus(); return; } setShowNewMenu(false); if (!showPalette && !showProjectForm && !deleting) closeInspector(); }
     };
     document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key);
   });
@@ -277,11 +334,10 @@ export default function App() {
 
   if (!loaded) return <div className="startup"><GitBranch size={32} /><h1>Codebase Planner</h1>{loadError ? <><p role="alert">Couldn't open your workspace. {loadError}</p><button className="primary-button" onClick={() => void load()}>Retry loading</button><p>Your existing data has not been replaced.</p></> : <p><Loader2 className="spin" size={16} /> Opening your workspace…</p>}</div>;
 
-  return <div className={`app ${sidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${selected && !showSettings ? 'has-inspector' : ''}`}>
+  return <div className={`app ${sidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${inspectorOpen ? 'has-inspector' : ''} ${expanded ? 'inspector-expanded' : ''}`}>
     <aside id="project-navigation" className="sidebar" aria-label="Project navigation">
       <div className="brand"><button className="icon-button sidebar-toggle" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={sidebarOpen} aria-controls="sidebar-content" title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}>{sidebarOpen ? <PanelLeftClose size={19} /> : <PanelLeftOpen size={19} />}</button><span className="sidebar-label brand-name" aria-hidden={!sidebarOpen}><GitBranch size={17} />Codebase Planner</span></div>
       <div id="sidebar-content" className="sidebar-content">
-      <button className="sidebar-search" aria-label="Search & actions" title="Search & actions (⌘ K)" onClick={() => { closeSettings(false); setShowPalette(true); setPaletteQuery(''); }}><Search size={15} /><span className="sidebar-label" aria-hidden={!sidebarOpen}>Search & actions</span><kbd className="sidebar-label" aria-hidden={!sidebarOpen}>⌘ K</kbd></button>
       <div className="section-label projects-label"><span className="sidebar-label" aria-hidden={!sidebarOpen}>Projects</span><button className="icon-button" aria-label="Create project" onClick={() => openProjectForm()}><Plus size={14} /></button></div>
       <div className="project-list">{workspace.projects.map(p => <button className={`project-row ${p.id === project?.id && !showSettings ? 'active' : ''}`} key={p.id} aria-label={p.name} title={p.name} onClick={() => { closeSettings(false); update(w => ({ ...w, activeProjectId: p.id })); if (window.matchMedia('(max-width: 760px)').matches) setSidebarOpen(false); }}><Folder size={16} /><span className="sidebar-label" aria-hidden={!sidebarOpen}>{p.name}</span>{p.id === project?.id && <span className="active-dot sidebar-label" aria-hidden={!sidebarOpen} />}</button>)}</div>
       {project && <>
@@ -300,25 +356,17 @@ export default function App() {
     </aside>
 
     {sidebarOpen && <button className="sidebar-scrim" aria-label="Collapse project navigation" onClick={() => setSidebarOpen(false)} />}
-    <main className="main">
-      <header className="workspace-header"><div className="breadcrumb">{showSettings ? <><Settings2 size={16} /><span>Settings</span></> : <><Folder size={16} /><span>{project?.name ?? 'Your workspace'}</span>{project && <><ChevronRight size={14} /><span className="muted">{view.mode === 'map' ? 'Mind map' : view.mode === 'board' ? 'Board' : 'List'}</span></>}</>}</div><div className="header-actions">{showSettings ? <button className="secondary-button settings-back" onClick={() => closeSettings()}><ArrowLeft size={15} />Back to workspace</button> : <button className="icon-button" aria-label="Settings" title="Settings (⌘ ,)" onClick={() => openSettings()}><Settings2 size={17} /></button>}<span className={`save-state ${saveStatus}`} title={saveError}>{saveStatus === 'saving' ? <Loader2 size={13} className="spin" /> : saveStatus === 'saved' ? <Check size={13} /> : <Circle size={10} />} {saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Save failed' : 'Unsaved'}</span>{project && !showSettings && <button className="icon-button" aria-label="Project settings" onClick={() => openProjectForm(project)}><Folder size={17} /></button>}</div></header>
+    <div className="workspace-body">
+    <main className="main" inert={expanded} aria-hidden={expanded || undefined}>
       {saveError && <div className="error-banner" role="alert"><span>Changes haven't saved. {saveError}</span><button onClick={() => void flush().catch(() => {})}>Retry save</button></div>}
-      {showSettings ? <div className="settings-page"><div className="settings-page-heading"><h1 tabIndex={-1} ref={settingsHeadingRef}>Settings</h1><p>Make this workspace your own.</p></div><SettingsPanel key={settingsSection} appearance={appearance} onAppearance={changeAppearance} planner={planner} native={native} initialSection={settingsSection} backupBusy={busy} canExport={!!workspace.projects.length} onBackup={action => { setSettingsFromPlanner(false); void runBackup(action); }} /></div> : <>
+      {showSettings ? <div className="settings-page"><div className="settings-page-heading"><h1 tabIndex={-1} ref={settingsHeadingRef}>Settings</h1><p>Make this workspace your own.</p></div><SettingsPanel key={settingsSection} appearance={appearance} onAppearance={changeAppearance} planner={planner} native={native} initialSection={settingsSection} backupBusy={busy} canExport={!!workspace.projects.length} onBackup={action => { void runBackup(action); }} /></div> : <>
       {missingFolder && <div className="folder-banner"><FolderOpen size={15} /><span>Repository folder is missing. Your planning data is still available.</span><button onClick={() => openProjectForm(project)}>Update folder</button></div>}
       {!project ? <div className="welcome"><div className="welcome-diagram" aria-hidden="true"><div className="welcome-root"><GitBranch size={25} /></div><div className="welcome-lines" /><div className="welcome-leaves"><span><Sparkles size={20} /></span><span><CheckCircle2 size={20} /></span><span><Bug size={20} /></span></div></div><h1>A little structure.<br />A clearer next step.</h1><p>A home for your ideas, features, tasks, and bugs.<br />Connect the big picture to the work in front of you.</p><button className="primary-button" onClick={() => openProjectForm()}><Plus size={17} />Create project</button><button className="text-button" onClick={() => update(() => demoWorkspace())}>Explore a demo project <ArrowUpRight size={14} /></button><div className="welcome-footnote"><span className="local-dot" />{native ? 'Stored on your Mac. Ready without an internet connection.' : 'Browser preview uses local storage. Desktop app uses SQLite.'}</div></div> : <>
-        <div className="project-heading"><div><div className="heading-eyebrow">{project.name}</div><h1>{sectionTitle}</h1><p>{sectionHint}</p></div><div className="planner-heading-actions"><button className="secondary-button" onClick={() => openPlanner()}><Sparkles size={15} />Plan with AI</button><div className="new-item-wrap" ref={newMenuRef}><button className="primary-button" aria-expanded={showNewMenu} onClick={() => setShowNewMenu(v => !v)}><Plus size={16} />New item<ChevronDown size={13} /></button>{showNewMenu && <div className="new-item-menu">{kinds.map(kind => <button key={kind} onClick={() => addItem(kind)}><KindIcon kind={kind} /><span><strong>{kindLabels[kind]}</strong><small>{({ idea: 'A thought to explore', feature: 'An outcome with tasks', todo: 'A specific piece of work', bug: 'Something to fix' })[kind]}</small></span></button>)}</div>}</div></div></div>
+        <div className="project-heading"><div><div className="heading-eyebrow">{project.name}</div><h1>{sectionTitle}</h1><p>{sectionHint}</p></div></div>
         {planner.hasBatch && <div className="planner-batch-banner" role="status"><span>{planner.undoAvailable ? 'Last AI batch can be undone during this session.' : 'Undo unavailable while saving or after generated items change.'}</span><button className="text-button" disabled={!planner.undoAvailable} onClick={() => void planner.undo()}>Undo AI batch</button></div>}
         {!showPlanner && planner.error && <div className="error-banner" role="alert"><span>{planner.error}</span><button onClick={() => setShowPlanner(true)}>Open planner</button></div>}
-        <div className="capture-area">
-          <label htmlFor="capture-idea" className="capture-label"><Lightbulb size={15} />Capture an idea<span>⌘ N</span></label>
-          <form className="quick-capture" onSubmit={event => { event.preventDefault(); capture(); }}>
-            <input id="capture-idea" ref={captureRef} aria-label="Add idea" aria-describedby="capture-hint" placeholder="What’s on your mind?" value={captureText} maxLength={300} onChange={event => setCaptureText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault(); }} /><button type="submit" className="primary-button" disabled={!captureText.trim()}><Plus size={15} />Save idea</button>
-          </form>
-          <p id="capture-hint" className="capture-hint">Saved to your Inbox. No need to organize it yet.</p>
-        </div>
         <div className="workspace-toolbar">
           <div className="view-switch" aria-label="Workspace view"><button aria-pressed={view.mode === 'outline'} className={view.mode === 'outline' ? 'active' : ''} onClick={() => patchView({ mode: 'outline' })}><LayoutList size={15} />List</button><button aria-pressed={view.mode === 'map'} className={view.mode === 'map' ? 'active' : ''} onClick={() => patchView({ mode: 'map' })}><MapIcon size={15} />Map</button><button disabled={inboxOnly} title={inboxOnly ? 'Turn ideas into features or tasks to track them on the board' : 'Track work by status'} aria-pressed={view.mode === 'board'} className={view.mode === 'board' ? 'active' : ''} onClick={() => patchView({ mode: 'board' })}><Columns3 size={15} />Board</button></div>
-          <div className="filter-search"><Search size={15} /><input aria-label="Search current project" placeholder="Search items…" value={query} onChange={e => setQuery(e.target.value)} />{query && <button className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={14} /></button>}</div>
           <details className="toolbar-more" ref={filtersRef}><summary><SlidersHorizontal size={15} />Filters{filterCount > 0 && <span className="filter-count">{filterCount}</span>}</summary><div>
             <label>Status<select aria-label="Filter status" value={statusFilter} onChange={e => setStatusFilter(e.target.value as Status | 'all')}><option value="all">All statuses</option>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
             <label>Planning horizon<select aria-label="Filter planning horizon" value={planningFilter ?? 'unplanned'} onChange={event => { const value = event.target.value; setPlanningFilter(value === 'unplanned' ? null : value === 'now' || value === 'next' || value === 'later' ? value : 'all'); }}><option value="all">Any time</option><option value="unplanned">Unplanned</option>{Object.entries(planningLaneLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
@@ -328,54 +376,71 @@ export default function App() {
           {view.mode === 'outline' && <button className={`select-items-button ${selecting ? 'active' : ''}`} aria-pressed={selecting} onClick={() => { setSelecting(value => !value); setCheckedIds(new Set()); }}>{selecting ? 'Done selecting' : 'Select items'}</button>}
           {view.mode === 'map' && <button className="arrange-button" onClick={() => { const arranged = new Map(arrangeItems(items).map(i => [i.id, i])); update(w => ({ ...w, items: w.items.map(i => arranged.get(i.id) ?? i) })); setNotice('Map arranged. Use Fit view to see all branches.'); }}><GitBranch size={14} />Arrange</button>}
         </div>
-        {(query || filterCount > 0 || planningFilter === null) && <div className="filter-summary" role="status"><span>{matching.length} {matching.length === 1 ? 'item' : 'items'}{query && ` matching “${query}”`}{statusFilter !== 'all' && ` · ${statusLabels[statusFilter]}`}{priorityFilter !== 'all' && ` · ${priorityFilter} priority`}{tagFilter && ` · #${tagFilter}`}{planningFilter === null && ' · Unplanned'}</span><button onClick={clearFilters}>Clear filters</button></div>}
+        {(filterCount > 0 || planningFilter === null) && <div className="filter-summary" role="status"><span>{matching.length} {matching.length === 1 ? 'item' : 'items'}{statusFilter !== 'all' && ` · ${statusLabels[statusFilter]}`}{priorityFilter !== 'all' && ` · ${priorityFilter} priority`}{tagFilter && ` · #${tagFilter}`}{planningFilter === null && ' · Unplanned'}</span><button onClick={clearFilters}>Clear filters</button></div>}
         {checkedIds.size > 0 && <div className="group-bar"><span>{checkedItems.length} selected{!canGroup && ' · Choose at least two items inside the same parent'}</span><button className="secondary-button" disabled={!canGroup} onClick={() => { setGroupTitle(''); setShowGroupForm(true); }}>Group into feature</button><button className="text-button" onClick={() => setCheckedIds(new Set())}>Clear selection</button></div>}
         <div className="work-surface">
-          {items.length === 0 ? <div className="empty-work"><Lightbulb size={32} /><h2>What are you building?</h2><p>Capture a thought above. Give it structure when you're ready.</p><button className="secondary-button" onClick={() => captureRef.current?.focus()}>Capture your first idea</button></div> : !matching.length ? <div className="no-results"><Search size={24} /><h2>{inboxOnly && inboxEmpty ? 'Inbox is clear' : 'No matching items'}</h2><p>{inboxOnly && inboxEmpty ? 'Capture a new thought above, or review the work in your plan.' : 'Try another search or clear your filters.'}</p><button className="secondary-button" onClick={clearFilters}>Show all items</button></div> : view.mode === 'board' && !matching.some(item => item.kind !== 'idea') ? <div className="no-results"><Lightbulb size={26} /><h2>Your ideas are ready to shape</h2><p>The board tracks features, tasks, and bugs.<br />Open an idea to turn it into work you can track.</p><button className="secondary-button" onClick={() => { clearFilters(); setInboxOnly(true); patchView({ mode: 'outline' }); }}>Open Inbox</button></div> : view.mode === 'map' ? <MindMap key={project.id} project={project} items={items} links={links} view={filtered ? { ...view, collapsed: [] } : view} selectedId={selectedId} matchingIds={filtered ? matchingWithAncestors(items, matchingIds) : matchingIds} revealIds={revealedBatch?.projectId === project.id ? revealedBatch.ids : undefined} onSelect={id => { if (id === `root:${project.id}`) openProjectForm(project); else setSelectedId(id); }} onRename={(id, title) => patchItem(id, { title })} onAdd={parentId => addItem('todo', parentId)} onMove={(id, x, y) => patchItem(id, { x, y })} onLink={addLink} onCollapse={collapse} onViewport={viewport => patchView({ viewport })} /> : view.mode === 'board' && !inboxOnly ? <Board items={items} matchingIds={matchingIds} selectedId={selectedId} onSelect={setSelectedId} onStatus={(id, status) => patchItem(id, { status })} /> : <Outline items={items} matchingIds={matchingIds} filtered={filtered} selecting={selecting} view={view} selectedId={selectedId} checkedIds={checkedIds} onSelect={setSelectedId} onStatus={(id, status) => patchItem(id, { status })} onPlan={(id, planningLane) => patchItem(id, { planningLane })} onCheck={(id, checked) => setCheckedIds(current => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; })} onCollapse={collapse} onMove={move} />}
+          {items.length === 0 ? <div className="empty-work"><Lightbulb size={32} /><h2>What are you building?</h2><p>Capture a thought with ⌘ N. Give it structure when you're ready.</p><button className="secondary-button" onClick={openCapture}>Capture your first idea</button></div> : !matching.length ? <div className="no-results"><Search size={24} /><h2>{inboxOnly && inboxEmpty ? 'Inbox is clear' : 'No matching items'}</h2><p>{inboxOnly && inboxEmpty ? 'Capture a new thought with ⌘ N, or review the work in your plan.' : 'Clear your filters to see more items.'}</p><button className="secondary-button" onClick={clearFilters}>Show all items</button></div> : view.mode === 'board' && !matching.some(item => item.kind !== 'idea') ? <div className="no-results"><Lightbulb size={26} /><h2>Your ideas are ready to shape</h2><p>The board tracks features, tasks, and bugs.<br />Open an idea to turn it into work you can track.</p><button className="secondary-button" onClick={() => { clearFilters(); setInboxOnly(true); patchView({ mode: 'outline' }); }}>Open Inbox</button></div> : view.mode === 'map' ? <MindMap key={project.id} project={project} items={items} links={links} view={filtered ? { ...view, collapsed: [] } : view} selectedId={selectedId} matchingIds={filtered ? matchingWithAncestors(items, matchingIds) : matchingIds} revealIds={revealedBatch?.projectId === project.id ? revealedBatch.ids : undefined} onSelect={id => { if (id === `root:${project.id}`) openProjectForm(project); else setSelectedId(id); }} onRename={(id, title) => patchItem(id, { title })} onAdd={parentId => addItem('todo', parentId)} onMove={(id, x, y) => patchItem(id, { x, y })} onLink={addLink} onCollapse={collapse} onViewport={viewport => patchView({ viewport })} /> : view.mode === 'board' && !inboxOnly ? <Board items={items} matchingIds={matchingIds} selectedId={selectedId} onSelect={setSelectedId} onStatus={(id, status) => patchItem(id, { status })} /> : <Outline items={items} matchingIds={matchingIds} filtered={filtered} selecting={selecting} view={view} selectedId={selectedId} checkedIds={checkedIds} onSelect={setSelectedId} onStatus={(id, status) => patchItem(id, { status })} onPlan={(id, planningLane) => patchItem(id, { planningLane })} onCheck={(id, checked) => setCheckedIds(current => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; })} onCollapse={collapse} onMove={move} />}
+          <div className="new-item-wrap" ref={newMenuRef}><button className="primary-button new-item-button" aria-label="New item" title="New item" aria-controls="new-item-menu" aria-expanded={showNewMenu} onClick={() => setShowNewMenu(v => !v)}><Plus size={23} aria-hidden="true" /></button>{showNewMenu && <div className="new-item-menu" id="new-item-menu"><button onClick={() => openPlanner()}><Sparkles size={15} /><span><strong>Plan with AI</strong><small>Turn an idea into a plan</small></span></button>{kinds.map(kind => <button key={kind} onClick={() => addItem(kind)}><KindIcon kind={kind} /><span><strong>{kindLabels[kind]}</strong><small>{({ idea: 'A thought to explore', feature: 'An outcome with tasks', todo: 'A specific piece of work', bug: 'Something to fix' })[kind]}</small></span></button>)}</div>}</div>
         </div><footer className="workspace-footer"><span>{`${matching.length} ${matching.length === 1 ? 'item' : 'items'} · ${completion} completed in project`}{view.mode === 'map' && ' · Drag to move · Connect to relate'}</span><span><kbd>⌘ N</kbd> Capture idea <kbd>⌘ K</kbd> Search</span></footer>
       </>}
       </>}
     </main>
 
-    {selected && !showSettings && <aside className="inspector" aria-label="Item details">
-      <div className="inspector-top"><span className={`kind-icon ${selected.kind}`}><KindIcon kind={selected.kind} /></span><span>{kindLabels[selected.kind]}</span><button className="icon-button" aria-label="Close item details" onClick={() => setSelectedId(null)}><PanelRightClose size={17} /></button></div>
+    <div className="inspector-slot">
+    <aside id="item-details" className="inspector" aria-label="Item details" inert={!inspectorOpen} aria-hidden={!inspectorOpen}>
+      {inspectorItem && <>
+      <div className="inspector-top"><span className={`kind-icon ${inspectorItem.kind}`}><KindIcon kind={inspectorItem.kind} /></span><span>{kindLabels[inspectorItem.kind]}</span><div className="inspector-actions"><button className="icon-button" aria-label={expanded ? 'Restore item details sidebar' : 'Expand item details'} title={expanded ? 'Restore sidebar' : 'Expand item details'} aria-expanded={expanded} aria-controls="item-details" onClick={() => setInspectorExpanded(value => !value)}>{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button><button className="icon-button" aria-label="Close item details" onClick={closeInspector}><PanelRightClose size={17} /></button></div></div>
+      {expanded && saveError && <div className="error-banner" role="alert"><span>Changes haven't saved. {saveError}</span><button onClick={() => void flush().catch(() => {})}>Retry save</button></div>}
       <div className="inspector-content">
-        <TitleEditor key={`title:${selected.id}`} autoFocus={focusTitleId === selected.id} title={selected.title} onChange={title => patchItem(selected.id, { title })} />
-        {selected.kind === 'idea' && <section className="shape-idea" aria-label="Organize this idea"><h2>Ready to shape this idea?</h2><p>Make it a feature for a bigger outcome, or a task for one clear action.</p><div>{(['feature', 'todo'] as const).map(kind => <button key={kind} className="secondary-button" onClick={() => { patchItem(selected.id, { kind }); clearFilters(); setNotice(`Idea turned into a ${kind === 'todo' ? 'task' : 'feature'}.`); }}><KindIcon kind={kind} />Make a {kind === 'todo' ? 'task' : 'feature'}</button>)}</div></section>}
-        <div className="planning-picker"><h2>When do you want to work on this?</h2><div role="group" aria-label="Item planning horizon">{([null, 'now', 'next', 'later'] as const).map(lane => <button key={lane ?? 'unplanned'} aria-pressed={selected.planningLane === lane} onClick={() => patchItem(selected.id, { planningLane: lane })}>{lane ? planningLaneLabels[lane] : 'Unplanned'}</button>)}</div></div>
+        <TitleEditor key={`title:${inspectorItem.id}`} autoFocus={focusTitleId === inspectorItem.id} title={inspectorItem.title} onChange={title => patchItem(inspectorItem.id, { title })} />
+        {inspectorItem.kind === 'idea' && <section className="shape-idea" aria-label="Organize this idea"><h2>Ready to shape this idea?</h2><p>Make it a feature for a bigger outcome, or a task for one clear action.</p><div>{(['feature', 'todo'] as const).map(kind => <button key={kind} className="secondary-button" onClick={() => { patchItem(inspectorItem.id, { kind }); clearFilters(); setNotice(`Idea turned into a ${kind === 'todo' ? 'task' : 'feature'}.`); }}><KindIcon kind={kind} />Make a {kind === 'todo' ? 'task' : 'feature'}</button>)}</div></section>}
+        <div className="planning-picker"><h2>When do you want to work on this?</h2><div role="group" aria-label="Item planning horizon">{([null, 'now', 'next', 'later'] as const).map(lane => <button key={lane ?? 'unplanned'} aria-pressed={inspectorItem.planningLane === lane} onClick={() => patchItem(inspectorItem.id, { planningLane: lane })}>{lane ? planningLaneLabels[lane] : 'Unplanned'}</button>)}</div></div>
         <div className="item-properties">
-          <label><span>Type</span><select aria-label="Item type" value={selected.kind} onChange={event => { const value = kinds.find(kind => kind === event.target.value); if (value) patchItem(selected.id, { kind: value }); }}>{kinds.map(kind => <option value={kind} key={kind}>{kindLabels[kind]}</option>)}</select></label>
-          {selected.kind !== 'idea' && <label><span>Status</span><select aria-label="Item status" value={selected.status} onChange={event => { const value = event.target.value; if (value === 'todo' || value === 'in_progress' || value === 'done') patchItem(selected.id, { status: value }); }}>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>}
+          <label><span>Type</span><select aria-label="Item type" value={inspectorItem.kind} onChange={event => { const value = kinds.find(kind => kind === event.target.value); if (value) patchItem(inspectorItem.id, { kind: value }); }}>{kinds.map(kind => <option value={kind} key={kind}>{kindLabels[kind]}</option>)}</select></label>
+          {inspectorItem.kind !== 'idea' && <label><span>Status</span><select aria-label="Item status" value={inspectorItem.status} onChange={event => { const value = event.target.value; if (value === 'todo' || value === 'in_progress' || value === 'done') patchItem(inspectorItem.id, { status: value }); }}>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>}
         </div>
         <details className="detail-section"><summary>Organize & move</summary><div className="item-properties">
-          <label><span>Inside</span><select aria-label="Item parent" value={selected.parentId ?? ''} onChange={event => move(selected.id, event.target.value || null)}><option value="">Project level</option>{items.filter(item => !invalidParents.has(item.id)).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-          <div className="item-reorder"><button className="secondary-button" disabled={items.filter(item => item.parentId === selected.parentId)[0]?.id === selected.id} onClick={() => reorder(selected.id, -1)}><ArrowUp size={13} />Move up</button><button className="secondary-button" disabled={items.filter(item => item.parentId === selected.parentId).at(-1)?.id === selected.id} onClick={() => reorder(selected.id, 1)}><ArrowDown size={13} />Move down</button></div>
+          <label><span>Inside</span><select aria-label="Item parent" value={inspectorItem.parentId ?? ''} onChange={event => move(inspectorItem.id, event.target.value || null)}><option value="">Project level</option>{items.filter(item => !invalidParents.has(item.id)).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+          <div className="item-reorder"><button className="secondary-button" disabled={items.filter(item => item.parentId === inspectorItem.parentId)[0]?.id === inspectorItem.id} onClick={() => reorder(inspectorItem.id, -1)}><ArrowUp size={13} />Move up</button><button className="secondary-button" disabled={items.filter(item => item.parentId === inspectorItem.parentId).at(-1)?.id === inspectorItem.id} onClick={() => reorder(inspectorItem.id, 1)}><ArrowDown size={13} />Move down</button></div>
         </div></details>
-        {(selected.kind !== 'idea' || items.some(item => item.parentId === selected.id)) && <section className="child-section" aria-label="Child items"><h2>{selected.kind === 'feature' ? 'Tasks and bugs' : 'Child items'}<span>{items.filter(item => item.parentId === selected.id).length}</span></h2>
-          <div className="child-items">{items.filter(item => item.parentId === selected.id).map(item => <button key={item.id} onClick={() => setSelectedId(item.id)}><span className={`kind-icon ${item.kind}`}><KindIcon kind={item.kind} /></span><span className={item.status === 'done' ? 'completed' : ''}>{item.title}</span><StatusIcon status={item.status} /></button>)}</div>
-          <div className="child-actions"><button className="secondary-button" onClick={() => addItem('todo', selected.id)}><Plus size={13} />Add task</button><button className="secondary-button" onClick={() => addItem('bug', selected.id)}><Bug size={13} />Add bug</button></div>
+        {(inspectorItem.kind !== 'idea' || items.some(item => item.parentId === inspectorItem.id)) && <section className="child-section" aria-label="Child items"><h2>{inspectorItem.kind === 'feature' ? 'Tasks and bugs' : 'Child items'}<span>{items.filter(item => item.parentId === inspectorItem.id).length}</span></h2>
+          <div className="child-items">{items.filter(item => item.parentId === inspectorItem.id).map(item => <button key={item.id} onClick={() => setSelectedId(item.id)}><span className={`kind-icon ${item.kind}`}><KindIcon kind={item.kind} /></span><span className={item.status === 'done' ? 'completed' : ''}>{item.title}</span><StatusIcon status={item.status} /></button>)}</div>
+          <div className="child-actions"><button className="secondary-button" onClick={() => addItem('todo', inspectorItem.id)}><Plus size={13} />Add task</button><button className="secondary-button" onClick={() => addItem('bug', inspectorItem.id)}><Bug size={13} />Add bug</button></div>
         </section>}
         <div className="notes-heading"><h2>Notes</h2><div className="small-switch"><button className={!previewNotes ? 'active' : ''} aria-pressed={!previewNotes} onClick={() => setPreviewNotes(false)}>Edit</button><button className={previewNotes ? 'active' : ''} aria-pressed={previewNotes} onClick={() => setPreviewNotes(true)}>Preview</button></div></div>
-        {previewNotes ? <div className="markdown-preview"><ReactMarkdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, img: ({ alt }) => <span>[Image: {alt ?? ''}]</span> }}>{selected.notes || '*No notes yet.*'}</ReactMarkdown></div> : <textarea className="notes-editor" aria-label="Item notes" placeholder={'What should future you know?\n\nMarkdown supported.'} value={selected.notes} onChange={event => patchItem(selected.id, { notes: event.target.value })} />}
-        <ItemPlanning key={`planning:${selected.id}`} item={selected} onChange={details => patchItem(selected.id, { details })} />
+        {previewNotes ? <div className="markdown-preview"><ReactMarkdown skipHtml components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>, img: ({ alt }) => <span>[Image: {alt ?? ''}]</span> }}>{inspectorItem.notes || '*No notes yet.*'}</ReactMarkdown></div> : <textarea className="notes-editor" aria-label="Item notes" placeholder={'What should future you know?\n\nMarkdown supported.'} value={inspectorItem.notes} onChange={event => patchItem(inspectorItem.id, { notes: event.target.value })} />}
+        <ItemPlanning key={`planning:${inspectorItem.id}`} item={inspectorItem} onChange={details => patchItem(inspectorItem.id, { details })} />
         <details className="detail-section"><summary>Additional details</summary><div className="item-properties">
-          <label><span>Priority</span><select aria-label="Item priority" value={selected.priority} onChange={event => { const value = event.target.value; if (value === 'low' || value === 'normal' || value === 'high') patchItem(selected.id, { priority: value }); }}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label>
-          <label><span>Tags</span><TagsEditor key={selected.id} tags={selected.tags} onChange={tags => patchItem(selected.id, { tags })} /></label>
+          <label><span>Priority</span><select aria-label="Item priority" value={inspectorItem.priority} onChange={event => { const value = event.target.value; if (value === 'low' || value === 'normal' || value === 'high') patchItem(inspectorItem.id, { priority: value }); }}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label>
+          <label><span>Tags</span><TagsEditor key={inspectorItem.id} tags={inspectorItem.tags} onChange={tags => patchItem(inspectorItem.id, { tags })} /></label>
         </div></details>
-        <details className="detail-section"><summary><Link2 size={14} />Related items<span>{links.filter(link => link.sourceId === selected.id || link.targetId === selected.id).length}</span></summary>
-          <div className="related-items">{links.filter(link => link.sourceId === selected.id || link.targetId === selected.id).map(link => { const other = items.find(item => item.id === (link.sourceId === selected.id ? link.targetId : link.sourceId)); return other && <div className="related-row" key={link.id}><button onClick={() => setSelectedId(other.id)}><KindIcon kind={other.kind} /><span>{other.title}</span></button><button className="icon-button" aria-label={`Remove relation to ${other.title}`} onClick={() => update(w => ({ ...w, links: w.links.filter(existing => existing.id !== link.id) }))}><X size={13} /></button></div>; })}</div>
-          <div className="relate-controls"><select aria-label="Select related item" value={relatedTarget} onChange={event => setRelatedTarget(event.target.value)}><option value="">Link an item…</option>{items.filter(item => item.id !== selected.id && !links.some(link => (link.sourceId === selected.id && link.targetId === item.id) || (link.targetId === selected.id && link.sourceId === item.id))).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="icon-button" aria-label="Add related link" disabled={!relatedTarget} onClick={() => addLink(selected.id, relatedTarget)}><Plus size={16} /></button></div>
+        <details className="detail-section"><summary><Link2 size={14} />Related items<span>{links.filter(link => link.sourceId === inspectorItem.id || link.targetId === inspectorItem.id).length}</span></summary>
+          <div className="related-items">{links.filter(link => link.sourceId === inspectorItem.id || link.targetId === inspectorItem.id).map(link => { const other = items.find(item => item.id === (link.sourceId === inspectorItem.id ? link.targetId : link.sourceId)); return other && <div className="related-row" key={link.id}><button onClick={() => setSelectedId(other.id)}><KindIcon kind={other.kind} /><span>{other.title}</span></button><button className="icon-button" aria-label={`Remove relation to ${other.title}`} onClick={() => update(w => ({ ...w, links: w.links.filter(existing => existing.id !== link.id) }))}><X size={13} /></button></div>; })}</div>
+          <div className="relate-controls"><select aria-label="Select related item" value={relatedTarget} onChange={event => setRelatedTarget(event.target.value)}><option value="">Link an item…</option>{items.filter(item => item.id !== inspectorItem.id && !links.some(link => (link.sourceId === inspectorItem.id && link.targetId === item.id) || (link.targetId === inspectorItem.id && link.sourceId === item.id))).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="icon-button" aria-label="Add related link" disabled={!relatedTarget} onClick={() => addLink(inspectorItem.id, relatedTarget)}><Plus size={16} /></button></div>
         </details>
         <div className="contextual-ai"><h2><Sparkles size={14} />Plan this item</h2><button onClick={() => openPlanner('clarify')}>Clarify idea</button><button onClick={() => openPlanner('requirements')}>Find missing requirements</button><button onClick={() => openPlanner('tasks')}>Break into tasks</button></div>
-        <div className="item-metadata">Updated {new Date(selected.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div><button className="delete-button" onClick={() => setDeleting({ type: 'item', id: selected.id, title: selected.title })}><Trash2 size={14} />Delete item</button>
+        <div className="item-metadata">Updated {new Date(inspectorItem.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div><button className="delete-button" onClick={() => setDeleting({ type: 'item', id: inspectorItem.id, title: inspectorItem.title })}><Trash2 size={14} />Delete item</button>
       </div>
-    </aside>}
+      </>}
+    </aside>
+    </div>
+    {showCapture && project && <div className="capture-composer" ref={captureDialogRef} role="dialog" aria-label="Capture idea" aria-describedby="capture-hint">
+      <form onSubmit={event => { event.preventDefault(); capture(); }}>
+        <button type="button" className="capture-action" aria-label="More actions" title="More actions" onClick={openPalette}><Plus size={23} /></button>
+        <textarea id="capture-idea" ref={captureRef} aria-label="Add idea" placeholder="Capture an idea" rows={Math.min(3, captureText.split('\n').length)} value={captureText} maxLength={300} onChange={event => setCaptureText(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return; if (event.key === 'Enter' && (!event.shiftKey || event.metaKey || event.ctrlKey)) { event.preventDefault(); capture(); } }} />
+        <button type="button" className="capture-action" aria-label="Dictation settings" title="Dictation settings" onClick={() => openSettings('general')}><Mic size={20} /></button>
+        <button type="submit" className="capture-send" aria-label="Save idea" title="Save idea" disabled={!captureText.trim()}><ArrowUp size={21} /></button>
+        <span id="capture-hint" className="capture-hint">Saved to Inbox. Enter to save. Shift Enter for a new line. Escape to close.</span>
+      </form>
+    </div>}
+    {showPalette && <div className="capture-composer search-composer" ref={paletteRef} role="dialog" aria-label="Search & actions" aria-describedby="search-hint"><div className="palette-input"><Search size={21} aria-hidden="true" /><input ref={paletteInputRef} aria-label="Search actions and items" aria-controls={paletteQuery.trim() ? "search-results" : undefined} placeholder="Search this project…" value={paletteQuery} onChange={e => setPaletteQuery(e.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return; if (event.key === 'Enter') { event.preventDefault(); paletteRef.current?.querySelector<HTMLButtonElement>('.palette-results button')?.click(); } }} /></div>{paletteQuery.trim() && <div id="search-results" className="palette-results" aria-label="Search results">{items.filter(i => itemSearchText(i).toLowerCase().includes(paletteQuery.toLowerCase())).slice(0, 40).map(i => <button key={i.id} onClick={() => { setSelectedId(i.id); closePalette(); }}><KindIcon kind={i.kind} /><span>{i.title}</span></button>)}{paletteQuery && !items.some(i => itemSearchText(i).toLowerCase().includes(paletteQuery.toLowerCase())) && <p>No matching items in this project.</p>}</div>}<span id="search-hint" className="capture-hint">Enter to open the first result. Escape to close.</span></div>}
+    </div>
 
-    {showPlanner && project && <Dialog title={`Plan ${project.name}`} close={closePlanner}><PlannerComposer native={native} connection={planner.connection} phase={planner.phase} message={planner.message} error={planner.error} prompt={planner.prompt} model={planner.model} existingItems={items} preview={planner.preview} action={planner.action} selectedTitle={selected?.title} onActionChange={planner.setAction} onApply={() => void planner.apply()} onDiscard={planner.discard} onPreviewChange={planner.setPreview} onPromptChange={planner.setPrompt} onModelChange={planner.setModel} onOpenSettings={() => openSettings('codex', true)} onGenerate={() => void planner.generate()} onCancel={() => void planner.cancel()} onRetrySave={saveError ? () => void planner.retrySave() : undefined} /></Dialog>}
+    {showPlanner && project && <Dialog title={`Plan ${project.name}`} close={closePlanner}><PlannerComposer native={native} connection={planner.connection} phase={planner.phase} message={planner.message} error={planner.error} prompt={planner.prompt} model={planner.model} existingItems={items} preview={planner.preview} action={planner.action} selectedTitle={selected?.title} onActionChange={planner.setAction} onApply={() => void planner.apply()} onDiscard={planner.discard} onPreviewChange={planner.setPreview} onPromptChange={planner.setPrompt} onGenerate={() => void planner.generate()} onCancel={() => void planner.cancel()} onRetrySave={saveError ? () => void planner.retrySave() : undefined} /></Dialog>}
     {showGroupForm && <Dialog title="Group into feature" close={() => setShowGroupForm(false)}><form onSubmit={event => { event.preventDefault(); if (!groupTitle.trim() || !canGroup) return; try { let featureId = ''; update(w => { const result = groupItems(w, [...checkedIds], groupTitle); featureId = result.featureId; return result.workspace; }); setSelectedId(featureId); setFocusTitleId(featureId); setCheckedIds(new Set()); setSelecting(false); clearFilters(); setShowGroupForm(false); } catch (error) { setNotice(errorText(error)); } }}><label className="form-field">Feature title<input required maxLength={300} value={groupTitle} onChange={event => setGroupTitle(event.target.value)} /></label><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setShowGroupForm(false)}>Cancel</button><button className="primary-button" disabled={!groupTitle.trim() || !canGroup}>Create feature</button></div></form></Dialog>}
     {showProjectForm && <Dialog title={editingProject ? 'Project settings' : 'Create project'} close={() => setShowProjectForm(false)}><form onSubmit={e => { e.preventDefault(); if (!projectName.trim()) return; const id = editingProject ?? crypto.randomUUID(); update(w => ({ ...w, projects: editingProject ? w.projects.map(p => p.id === id ? { ...p, name: projectName.trim(), folder: projectFolder } : p) : [...w.projects, { id, name: projectName.trim(), folder: projectFolder, createdAt: new Date().toISOString() }], activeProjectId: id, views: { ...w.views, [id]: w.views[id] ?? defaultView() } })); setShowProjectForm(false); }}><label className="form-field">Project name<input required maxLength={200} placeholder="e.g. My next great app" value={projectName} onChange={e => setProjectName(e.target.value)} /></label><label className="form-field">Repository folder<span className="folder-picker"><input aria-label="Repository folder" placeholder={native ? 'Choose a local repository' : 'Optional path for browser preview'} value={projectFolder} readOnly={native} onChange={e => setProjectFolder(e.target.value)} /><button type="button" className="secondary-button" aria-label="Choose repository folder" disabled={!native} onClick={async () => { try { const folder = await chooseFolder(); if (folder) { setProjectFolder(folder); if (!projectName) setProjectName(folder.split('/').filter(Boolean).at(-1) ?? ''); } } catch (error) { setNotice(errorText(error)); } }}><FolderOpen size={15} />Choose</button></span></label><p className="form-hint">Folder association is optional. Your repository files stay untouched.</p><div className="dialog-actions">{editingProject && <button type="button" className="delete-button" onClick={() => { setShowProjectForm(false); setDeleting({ type: 'project', id: editingProject, title: projectName }); }}><Trash2 size={14} />Delete project</button>}<button type="button" className="secondary-button" onClick={() => setShowProjectForm(false)}>Cancel</button><button className="primary-button" disabled={!projectName.trim()}>{editingProject ? 'Save settings' : 'Create project'}</button></div></form></Dialog>}
     {deleting && <Dialog title={deleting.type === 'project' ? 'Delete project?' : 'Delete this branch?'} close={() => setDeleting(null)}><p className="delete-description">“{deleting.title}” and {deleting.type === 'project' ? workspace.items.filter(i => i.projectId === deleting.id).length : descendants(workspace.items, deleting.id).size} {deleting.type === 'project' ? 'items' : 'descendant items'} will be permanently deleted, including their related links. Export a backup first if you need a copy.</p><div className="dialog-actions"><button className="secondary-button" onClick={() => setDeleting(null)}>Cancel</button><button className="danger-button" onClick={deleteConfirmed}>Delete {deleting.type === 'project' ? 'project' : 'branch'}</button></div></Dialog>}
-    {showPalette && <Dialog title="Search & actions" close={() => setShowPalette(false)}><div className="palette-input"><Search size={18} /><input aria-label="Search actions and items" placeholder="Search this project or choose an action…" value={paletteQuery} onChange={e => setPaletteQuery(e.target.value)} /></div><div className="palette-results">{!paletteQuery && <><button onClick={() => { setShowPalette(false); if (project) captureRef.current?.focus(); else openProjectForm(); }}><Lightbulb size={16} /><span>Capture idea</span><kbd>⌘ N</kbd></button><button onClick={() => { setShowPalette(false); openProjectForm(); }}><Folder size={16} />Create project</button>{project && <>{(['outline', 'map', 'board'] as const).map(mode => <button key={mode} onClick={() => { setShowPalette(false); patchView({ mode }); }}><LayoutList size={16} />Show {mode === 'outline' ? 'list' : mode}</button>)}</>}</>}{items.filter(i => itemSearchText(i).toLowerCase().includes(paletteQuery.toLowerCase())).slice(0, 40).map(i => <button key={i.id} onClick={() => { setSelectedId(i.id); setShowPalette(false); }}><KindIcon kind={i.kind} /><span>{i.title}</span></button>)}{paletteQuery && !items.some(i => itemSearchText(i).toLowerCase().includes(paletteQuery.toLowerCase())) && <p>No matching items in this project.</p>}</div></Dialog>}
+
     {notice && <div className="toast" role="status"><span>{notice}</span>{notice === 'Idea saved to Inbox.' && capturedId && <button className="toast-action" onClick={() => { setSelectedId(capturedId); setNotice(''); }}>Organize idea<ArrowUpRight size={14} /></button>}<button aria-label="Dismiss notification" onClick={() => setNotice('')}><X size={15} /></button></div>}
   </div>;
 }

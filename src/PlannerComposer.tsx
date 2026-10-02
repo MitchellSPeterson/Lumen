@@ -1,4 +1,5 @@
-import type { KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
+import { ArrowUp, Square } from 'lucide-react';
 import type { ItemDetails, WorkItem } from './domain';
 import type { DraftItem, PlannerAction, PlannerDraft, Reference } from './planner';
 import './PlannerComposer.css';
@@ -22,8 +23,6 @@ type PlannerComposerProps = {
   model: string;
   native: boolean;
   onPromptChange(value: string): void;
-  onModelChange(value: string): void;
-  onOpenSettings(): void;
   onGenerate(): void;
   onCancel(): void;
   onRetrySave?: () => void;
@@ -39,16 +38,27 @@ export function PlannerComposer({
   model,
   native,
   onPromptChange,
-  onModelChange,
-  onOpenSettings,
   onGenerate,
   onCancel,
   onRetrySave,
 }: PlannerComposerProps) {
+  const [submitted, setSubmitted] = useState(false);
   const busy = phase !== 'idle';
-  const canCancel = phase === 'connecting' || phase === 'signing-in' || phase === 'generating';
+  const canCancel = phase === 'generating';
   const modelAvailable = connection?.models.some(option => option.id === model) ?? false;
   const generateDisabled = !native || !connection?.connected || !modelAvailable || !prompt.trim() || prompt.length > 8000 || busy || !!onRetrySave || (action !== 'project' && !selectedTitle);
+
+  const generateLabel = !native ? 'Open the desktop app to generate a plan'
+    : !connection?.connected ? 'Connect Codex in Settings to generate a plan'
+    : !modelAvailable ? 'Choose an available model in Settings to generate a plan'
+    : onRetrySave ? 'Retry saving your changes before generating another plan'
+    : busy ? 'Wait for the current operation to finish'
+    : action !== 'project' && !selectedTitle ? 'Select an item for this planning action'
+    : !prompt.trim() ? 'Describe what you would like to plan'
+    : prompt.length > 8000 ? 'Limit your prompt to 8,000 characters'
+    : preview ? 'Regenerate plan' : 'Generate plan';
+  const showResult = submitted || !!preview || !!onRetrySave || phase === 'generating' || phase === 'saving';
+  const generate = () => { setSubmitted(true); onGenerate(); };
 
   const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const composing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
@@ -62,87 +72,44 @@ export function PlannerComposer({
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
-      if (!generateDisabled) onGenerate();
+      if (!generateDisabled) generate();
     }
   };
 
   return (
     <section className="planner-composer" aria-label="Plan with Codex">
-      <p className="planner-composer__intro">Describe your idea, review the proposal, then add it to your plan. You choose what gets saved.</p>
-      <div className="planner-composer__connection">
-        <div className="planner-composer__connection-copy">
-          <span className={`planner-composer__dot${connection?.connected ? ' is-connected' : ''}`} aria-hidden="true" />
-          <span className="planner-composer__connection-state">
-            {connection?.connected ? 'Connected to Codex' : 'Codex isn’t connected'}
-          </span>
-          {connection?.connected && connection.account && (
-            <span className="planner-composer__account">{connection.account}</span>
-          )}
-        </div>
-        <button type="button" className="secondary-button" onClick={onOpenSettings} disabled={busy}>{connection?.connected ? 'Connection settings' : 'Connect Codex'}</button>
-      </div>
-
-      {!native && <p className="planner-composer__notice" role="status">Open the desktop app to connect Codex.</p>}
-
-      <label className="planner-composer__label" htmlFor="planner-action">How can Codex help?</label>
-      <select id="planner-action" className="planner-composer__select" value={action} disabled={busy} onChange={event => onActionChange(event.currentTarget.value as PlannerAction)}>
+      <select id="planner-action" className="planner-composer__select" aria-label="Planning action" value={action} disabled={busy} onChange={event => { setSubmitted(false); onActionChange(event.currentTarget.value as PlannerAction); }}>
         <option value="project">Plan project</option>
         <option value="clarify" disabled={!selectedTitle}>Clarify selected idea</option>
         <option value="requirements" disabled={!selectedTitle}>Draft selected requirements</option>
         <option value="tasks" disabled={!selectedTitle}>Break selected item into tasks</option>
       </select>
-      {selectedTitle && action !== 'project' && <p className="planner-composer__hint">Selected item: {selectedTitle}</p>}
-      <label className="planner-composer__label" htmlFor="planner-composer-prompt">What would you like to plan?</label>
-      <textarea
-        id="planner-composer-prompt"
-        className="planner-composer__prompt"
-        value={prompt}
-        maxLength={8000}
-        rows={7}
-        placeholder="Describe a feature, project, or idea…"
-        onChange={event => onPromptChange(event.currentTarget.value)}
-        onKeyDown={handlePromptKeyDown}
-        aria-describedby="planner-composer-prompt-hint"
-      />
-      <div className="planner-composer__prompt-meta">
-        <span id="planner-composer-prompt-hint">Enter for a new line · ⌘/Ctrl + Enter to generate</span>
-        <span>{prompt.length.toLocaleString()} / 8,000</span>
+      <div className="planner-composer__input-box">
+        <textarea
+          id="planner-composer-prompt"
+          className="planner-composer__prompt"
+          aria-label={action === 'project' ? 'Planning prompt' : `Planning prompt for ${selectedTitle ?? 'selected item'}`}
+          value={prompt}
+          maxLength={8000}
+          rows={7}
+          placeholder="Describe a feature, project, or idea…"
+          onChange={event => onPromptChange(event.currentTarget.value)}
+          onKeyDown={handlePromptKeyDown}
+        />
+        {canCancel ? <button type="button" className="planner-composer__send" onClick={onCancel} aria-label="Cancel generation" title="Cancel generation"><Square size={14} aria-hidden="true" /></button>
+          : <span className="planner-composer__send-slot" title={generateLabel}><button type="button" className="planner-composer__send" onClick={generate} disabled={generateDisabled} aria-label={generateLabel}><ArrowUp size={17} aria-hidden="true" /></button></span>}
       </div>
-      <p className="planner-composer__hint">{action === 'project' ? 'Your prompt and full project planning context are sent to Codex.' : 'Your prompt, selected item, and its related work are sent to Codex.'}</p>
-
-      <div className="planner-composer__options">
-        <label className="planner-composer__label" htmlFor="planner-composer-model">Model</label>
-        <select
-          id="planner-composer-model"
-          className="planner-composer__select"
-          value={model}
-          onChange={event => onModelChange(event.currentTarget.value)}
-          disabled={!connection?.connected || !connection.models.length || busy}
-        >
-          <option value="">Choose a model</option>
-          {connection?.models.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
-          {model && !modelAvailable && <option value={model} disabled>{model} · unavailable</option>}
-        </select>
-      </div>
-      <details className="planner-composer__guidance"><summary>Use voice dictation</summary><p className="planner-composer__hint">On macOS, enable Dictation in System Settings → Keyboard → Dictation, then use your configured shortcut while the prompt is focused.</p></details>
-      {connection?.connected && !modelAvailable && <p className="planner-composer__hint">Choose an available model. Model changes are always yours to select.</p>}
-
-
 
       {preview && <PlanPreview draft={preview} existingItems={existingItems} disabled={busy} onChange={onPreviewChange} />}
-      <div className="planner-composer__status" aria-live="polite" aria-atomic="true">
-        {message && <span>{message}</span>}
-      </div>
-      {error && <p className="planner-composer__error" role="alert" aria-live="assertive">{error}</p>}
+      {showResult && <>
+        {message && <div className="planner-composer__status" role="status" aria-live="polite" aria-atomic="true">{message}</div>}
+        {error && <p className="planner-composer__error" role="alert" aria-live="assertive">{error}</p>}
+        {(preview || onRetrySave) && <div className="planner-composer__actions">
+          {onRetrySave && <button type="button" className="secondary-button" disabled={busy} onClick={onRetrySave}>Retry save</button>}
+          {preview && <><button type="button" className="secondary-button" disabled={busy} onClick={onDiscard}>Discard preview</button><button type="button" className="primary-button" disabled={busy || !!onRetrySave} onClick={onApply}>Apply plan</button></>}
+        </div>}
+      </>}
 
-      <div className="planner-composer__actions">
-        {onRetrySave && <button type="button" className="secondary-button" disabled={busy} onClick={onRetrySave}>Retry save</button>}
-        {preview && <><button type="button" className="secondary-button" disabled={busy} onClick={onDiscard}>Discard preview</button><button type="button" className="primary-button" disabled={busy || !!onRetrySave} onClick={onApply}>Apply plan</button></>}
-        {canCancel && <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>}
-        <button type="button" className={`${preview ? 'secondary-button' : 'primary-button'} planner-composer__generate`} onClick={onGenerate} disabled={generateDisabled}>
-          {phase === 'generating' ? 'Generating…' : phase === 'saving' ? 'Saving…' : preview ? 'Regenerate' : 'Generate preview'}
-        </button>
-      </div>
     </section>
   );
 }

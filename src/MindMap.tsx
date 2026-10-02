@@ -248,7 +248,7 @@ function MindMapCanvas(props: MindMapProps) {
       >
         <RevealItems ids={props.revealIds} />
         <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--map-grid, #d7d8d1)" />
-        <MiniMap style={{ width: 120, height: 80 }} pannable zoomable nodeColor={node => node.type === 'root' ? 'var(--accent)' : 'var(--map-node)'} />
+        <MiniMap position="bottom-left" style={{ width: 120, height: 80, marginLeft: 58 }} pannable zoomable nodeColor={node => node.type === 'root' ? 'var(--accent)' : 'var(--map-node)'} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
