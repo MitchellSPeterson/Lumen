@@ -51,11 +51,10 @@ export function useWorkspace() {
     let unlistenQuit: (() => void) | undefined;
     if (native) {
       void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        const window = getCurrentWindow(); let allowClose = false;
+        const window = getCurrentWindow();
         const off = await window.onCloseRequested(async event => {
-          if (allowClose || revision.current === savedRevision.current) return;
           event.preventDefault();
-          try { await flush(); allowClose = true; await window.close(); } catch { /* Error remains visible in the open window. */ }
+          try { await flush(); await invoke('finish_quit'); } catch { /* Error remains visible in the open window. */ }
         });
         if (disposed) off(); else unlisten = off;
       });
