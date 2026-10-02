@@ -4,7 +4,7 @@ import {
   Position, ReactFlow, useNodesInitialized, useReactFlow, type Connection, type Edge, type Node, type NodeChange,
   type NodeProps, type Viewport,
 } from '@xyflow/react';
-import { Bug, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDashed, FolderKanban, ListTodo, Plus, Sparkles } from 'lucide-react';
+import { Bug, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDashed, Lightbulb, FolderKanban, ListTodo, Plus, Sparkles } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import type { Project, ProjectView, RelatedLink, WorkItem } from './domain';
 
@@ -40,7 +40,7 @@ type MapData = Record<string, unknown> & {
 };
 type MapNode = Node<MapData, 'item' | 'root'>;
 
-const kindIcons = { todo: ListTodo, feature: Sparkles, bug: Bug };
+const kindIcons = { idea: Lightbulb, todo: ListTodo, feature: Sparkles, bug: Bug };
 const statusIcons = { todo: Circle, in_progress: CircleDashed, done: CheckCircle2 };
 const rootId = (projectId: string) => `root:${projectId}`;
 

@@ -2,7 +2,7 @@ use crate::model::{Project, ProjectView, RelatedLink, Viewport, WorkItem, Worksp
 use rusqlite::{params, Connection};
 use std::{collections::HashMap, fs, path::Path, time::Duration};
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 fn database_error(error: impl std::fmt::Display) -> String {
     format!("Workspace database error: {error}")
@@ -31,7 +31,8 @@ fn migrate(connection: &mut Connection) -> Result<(), String> {
     }
 
     let transaction = connection.transaction().map_err(database_error)?;
-    transaction.execute_batch(
+    if version == 0 {
+        transaction.execute_batch(
         "CREATE TABLE metadata (
            key TEXT PRIMARY KEY,
            value TEXT NOT NULL
@@ -82,6 +83,14 @@ fn migrate(connection: &mut Connection) -> Result<(), String> {
          );
          INSERT INTO metadata(key, value) VALUES ('schema_version', '1'), ('active_project_id', '');
          PRAGMA user_version = 1;"
+        ).map_err(database_error)?;
+    }
+    transaction.execute_batch(
+        "ALTER TABLE items ADD COLUMN planning_lane TEXT;
+         ALTER TABLE items ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}';
+         UPDATE view_state SET mode = 'outline' WHERE mode = 'list';
+         UPDATE metadata SET value = '2' WHERE key = 'schema_version';
+         PRAGMA user_version = 2;"
     ).map_err(database_error)?;
     transaction.commit().map_err(database_error)
 }
@@ -105,12 +114,13 @@ pub fn save(connection: &mut Connection, workspace: &Workspace) -> Result<(), St
     }
     for (index, item) in workspace.items.iter().enumerate() {
         let tags = serde_json::to_string(&item.tags).map_err(database_error)?;
+        let details = serde_json::to_string(&item.details).map_err(database_error)?;
         transaction.execute(
-            "INSERT INTO items(id, project_id, parent_id, sort_index, item_order, title, kind, status, priority, tags, notes, created_at, updated_at, x, y)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            "INSERT INTO items(id, project_id, parent_id, sort_index, item_order, title, kind, status, priority, tags, notes, created_at, updated_at, x, y, planning_lane, details_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![item.id, item.project_id, item.parent_id, index as i64, item.order, item.title,
                 item.kind, item.status, item.priority, tags, item.notes, item.created_at,
-                item.updated_at, item.x, item.y],
+                item.updated_at, item.x, item.y, item.planning_lane, details],
         ).map_err(database_error)?;
     }
     for (index, link) in workspace.links.iter().enumerate() {
@@ -153,23 +163,23 @@ pub fn load(connection: &Connection) -> Result<Workspace, String> {
     let items = {
         let mut statement = connection.prepare(
             "SELECT id, project_id, parent_id, item_order, title, kind, status, priority, tags,
-                    notes, created_at, updated_at, x, y FROM items ORDER BY sort_index"
+                    notes, created_at, updated_at, x, y, planning_lane, details_json FROM items ORDER BY sort_index"
         ).map_err(database_error)?;
         let rows = statement.query_map([], |row| Ok((
             row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?,
             row.get::<_, f64>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
             row.get::<_, String>(6)?, row.get::<_, String>(7)?, row.get::<_, String>(8)?,
             row.get::<_, String>(9)?, row.get::<_, String>(10)?, row.get::<_, String>(11)?,
-            row.get::<_, f64>(12)?, row.get::<_, f64>(13)?,
+            row.get::<_, f64>(12)?, row.get::<_, f64>(13)?, row.get::<_, Option<String>>(14)?, row.get::<_, String>(15)?,
         ))).map_err(database_error)?;
         let mut items = Vec::new();
         for row in rows {
             let (id, project_id, parent_id, order, title, kind, status, priority, tags,
-                notes, created_at, updated_at, x, y) = row.map_err(database_error)?;
+                notes, created_at, updated_at, x, y, planning_lane, details) = row.map_err(database_error)?;
             items.push(WorkItem {
                 id, project_id, parent_id, order, title, kind, status, priority,
                 tags: serde_json::from_str(&tags).map_err(database_error)?,
-                notes, created_at, updated_at, x, y,
+                notes, created_at, updated_at, x, y, planning_lane, details: serde_json::from_str(&details).map_err(database_error)?,
             });
         }
         items
@@ -217,7 +227,7 @@ pub fn load(connection: &Connection) -> Result<Workspace, String> {
         "SELECT value FROM metadata WHERE key = 'active_project_id'", [], |row| row.get(0)
     ).map_err(database_error)?;
     let workspace = Workspace {
-        version: 1, projects, items, links, views,
+        version: 2, projects, items, links, views,
         active_project_id: if active_project_id.is_empty() { None } else { Some(active_project_id) },
     };
     workspace.validate()?;
@@ -240,10 +250,11 @@ mod tests {
             order: 1.5, title: id.into(), kind: "feature".into(), status: "in_progress".into(),
             priority: "high".into(), tags: vec!["rust".into()], notes: "note".into(),
             created_at: "2026-10-01T00:00:00Z".into(), updated_at: "2026-10-01T00:00:00Z".into(),
-            x: 20.0, y: 30.0,
+            x: 20.0, y: 30.0, planning_lane: Some("next".into()),
+            details: serde_json::json!({"feature":{"problem":"Missing context", "expectedBehavior":"Clear plan", "acceptanceCriteria":[{"id":"criterion", "text":"Saved", "checked":true}], "openQuestions":"Timing"}, "bug":{"stepsToReproduce":"Open app", "expectedBehavior":"Wrap", "actualBehavior":"Overflow"}}),
         };
         Workspace {
-            version: 1, projects: vec![project],
+            version: 2, projects: vec![project],
             items: vec![item("child", Some("root"), "project-a"), item("root", None, "project-a")],
             links: vec![RelatedLink {
                 id: "related".into(), project_id: "project-a".into(),
@@ -272,6 +283,9 @@ mod tests {
         assert_eq!(json["items"][0]["projectId"], "project-a");
         assert_eq!(json["views"]["project-a"]["collapsed"][0], "root");
         assert_eq!(json["links"][0]["sourceId"], "child");
+        assert_eq!(json["items"][0]["planningLane"], "next");
+        assert_eq!(json["items"][0]["details"]["feature"]["acceptanceCriteria"][0]["checked"], true);
+        assert_eq!(json["items"][0]["details"]["bug"]["actualBehavior"], "Overflow");
     }
 
     #[test]
@@ -304,11 +318,77 @@ mod tests {
     }
 
     #[test]
+    fn v1_database_migrates_without_losing_existing_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("planner.sqlite");
+        let mut connection = open(&path).unwrap();
+        save(&mut connection, &sample()).unwrap();
+        connection.execute_batch("ALTER TABLE items DROP COLUMN planning_lane; ALTER TABLE items DROP COLUMN details_json; UPDATE view_state SET mode = 'list'; UPDATE metadata SET value = '1' WHERE key = 'schema_version'; PRAGMA user_version = 1;").unwrap();
+        drop(connection);
+        let connection = open(&path).unwrap();
+        let loaded = load(&connection).unwrap();
+        assert_eq!(loaded.version, 2);
+        assert_eq!(loaded.items[0].parent_id.as_deref(), Some("root"));
+        assert_eq!(loaded.items[0].notes, "note");
+        assert_eq!(loaded.items[0].planning_lane, None);
+        assert_eq!(loaded.items[0].details, serde_json::json!({}));
+        assert_eq!(loaded.links.len(), 1);
+        assert_eq!(loaded.views["project-a"].mode, "outline");
+        assert_eq!(loaded.views["project-a"].collapsed, vec!["root"]);
+        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
+        assert_eq!(connection.query_row("SELECT value FROM metadata WHERE key = 'schema_version'", [], |row| row.get::<_, String>(0)).unwrap(), "2");
+    }
+
+    #[test]
+    fn backup_migration_and_invalid_details_preserve_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut connection = open(&directory.path().join("planner.sqlite")).unwrap();
+        let original = sample();
+        save(&mut connection, &original).unwrap();
+        let mut legacy = serde_json::to_value(&original).unwrap();
+        legacy["version"] = serde_json::json!(1);
+        legacy["views"]["project-a"]["mode"] = serde_json::json!("list");
+        for item in legacy["items"].as_array_mut().unwrap() { item.as_object_mut().unwrap().remove("planningLane"); item.as_object_mut().unwrap().remove("details"); }
+        let migrated = crate::model::from_backup(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+        assert_eq!(migrated.version, 2);
+        assert_eq!(migrated.views["project-a"].mode, "outline");
+        assert_eq!(migrated.items[0].notes, "note");
+        assert_eq!(migrated.items[0].details, serde_json::json!({}));
+        let roundtrip = crate::model::from_backup(&serde_json::to_vec(&original).unwrap()).unwrap();
+        assert_eq!(roundtrip.items[0].details, original.items[0].details);
+        for details in [serde_json::json!(null), serde_json::json!({"feature":null}), serde_json::json!({"feature":{"problem":"", "expectedBehavior":"", "openQuestions":"", "acceptanceCriteria":[{"id":"a", "text":"", "checked":false}, {"id":"a", "text":"", "checked":true}]}}), serde_json::json!({"bug":{"stepsToReproduce":"", "expectedBehavior":"", "actualBehavior":3}})] {
+            let mut invalid = sample(); invalid.items[0].details = details;
+            assert!(save(&mut connection, &invalid).is_err());
+            assert!(crate::model::from_backup(&serde_json::to_vec(&invalid).unwrap()).is_err());
+            assert_eq!(load(&connection).unwrap().items[0].details, original.items[0].details);
+        }
+        let mut future = serde_json::to_value(&original).unwrap(); future["version"] = serde_json::json!(3);
+        assert!(crate::model::from_backup(&serde_json::to_vec(&future).unwrap()).is_err());
+        assert_eq!(load(&connection).unwrap().items[0].details, original.items[0].details);
+        for (field, malformed) in [("planningLane", serde_json::json!("urgent")), ("planningLane", serde_json::json!(3)), ("parentId", serde_json::json!(false))] {
+            let mut invalid = serde_json::to_value(&original).unwrap(); invalid["items"][0][field] = malformed;
+            assert!(crate::model::from_backup(&serde_json::to_vec(&invalid).unwrap()).is_err());
+        }
+        let mut missing = serde_json::to_value(&original).unwrap(); missing["items"][0].as_object_mut().unwrap().remove("details");
+        assert!(crate::model::from_backup(&serde_json::to_vec(&missing).unwrap()).is_err());
+    }
+
+    #[test]
+    fn failed_migration_rolls_back_all_schema_changes() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate(&mut connection).unwrap();
+        connection.execute_batch("ALTER TABLE items DROP COLUMN planning_lane; PRAGMA user_version = 1;").unwrap();
+        assert!(migrate(&mut connection).is_err());
+        assert!(connection.prepare("SELECT planning_lane FROM items").is_err());
+        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
     fn future_schema_is_rejected_without_changes() {
         let mut connection = Connection::open_in_memory().unwrap();
-        connection.pragma_update(None, "user_version", 2).unwrap();
+        connection.pragma_update(None, "user_version", 3).unwrap();
         assert!(migrate(&mut connection).unwrap_err().contains("newer version"));
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 }

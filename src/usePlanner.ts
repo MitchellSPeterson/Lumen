@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cancelCodex, connectCodex, disconnectCodex, generatePlan, type AgentConnection, type PlannerPhase } from './agent';
-import { applyPlannerDraft, buildPlannerContext, canUndoPlannerBatch, undoPlannerBatch, type PlannerBatch } from './planner';
+import { applyPlannerDraft, buildPlannerContext, canUndoPlannerBatch, undoPlannerBatch, parsePlannerDraft, type PlannerAction, type PlannerDraft, type PlannerScope, type PlannerBatch } from './planner';
 import type { Workspace } from './domain';
 
 interface Options {
@@ -33,6 +33,30 @@ export function usePlanner(options: Options) {
   const [prompt, setPrompt] = useState('');
   const [model, setModelValue] = useState(rememberedModel);
   const [executable, setExecutableValue] = useState(rememberedExecutable);
+  const [action, setActionValue] = useState<PlannerAction>('project');
+  const [preview, setPreviewValue] = useState<PlannerDraft | null>(null);
+  const previewRef = useRef<PlannerDraft | null>(null);
+  const previewScope = useRef<{ projectId: string; scope: PlannerScope } | null>(null);
+  function clearPreview() { previewRef.current = null; previewScope.current = null; setPreviewValue(null); }
+  function setPreview(value: PlannerDraft) {
+    if (operation.current || !previewRef.current) return;
+    previewRef.current = value;
+    setPreviewValue(value);
+    setError('');
+  }
+  function setAction(value: PlannerAction) {
+    if (operation.current) return;
+    setActionValue(value);
+    clearPreview();
+    const prompts: Record<PlannerAction, string> = {
+      clarify: 'Clarify this idea. Identify its problem, intended outcome, and open questions. Propose an update to the selected item’s planning notes only.',
+      requirements: 'Draft concrete requirements and testable acceptance criteria for the selected item. Preserve existing decisions and checked criteria. Propose an update to its planning details.',
+      tasks: 'Break the selected item into small implementation tasks with clear outcomes. Propose child tasks, preserving the existing item.',
+      project: '',
+    };
+    if (value !== 'project') setPrompt(prompts[value]);
+  }
+  function discard() { clearPreview(); setError(''); setMessage('Preview discarded.'); void cancel(); }
   const [batch, setBatch] = useState<PlannerBatch | null>(null);
   const operation = useRef<{ id: string; kind: 'connect' | 'generate' | 'save'; cancelled: boolean } | null>(null);
   const mounted = useRef(true);
@@ -47,6 +71,7 @@ export function usePlanner(options: Options) {
     try { localStorage.setItem(executablePreferenceKey, value); } catch { /* Selection still works for this session. */ }
   }
   async function cancel() {
+    clearPreview();
     const active = operation.current;
     if (!active || active.kind === 'save' || active.cancelled) return;
     active.cancelled = true;
@@ -62,6 +87,8 @@ export function usePlanner(options: Options) {
   }
   useEffect(() => {
     void cancel();
+    setBatch(null);
+    setActionValue('project');
   }, [options.projectId]);
   useEffect(() => {
     mounted.current = true;
@@ -100,44 +127,68 @@ export function usePlanner(options: Options) {
   async function generate() {
     if (operation.current || latest.current.saveError || !connection?.connected || !connection.models.some(candidate => candidate.id === model)) return;
     const projectId = latest.current.projectId;
+    const selectedId = action === 'project' ? null : latest.current.selectedId;
     if (!projectId || !prompt.trim() || prompt.length > 8000) return;
-    const active = { id: crypto.randomUUID(), kind: 'generate' as 'generate' | 'save', cancelled: false };
+    if (action !== 'project' && !selectedId) { setError('Select an item for this planning action.'); return; }
+    clearPreview();
+    const active = { id: crypto.randomUUID(), kind: 'generate' as const, cancelled: false };
     operation.current = active; setPhase('generating'); setError(''); setMessage('Planning…');
-    let applied = false;
     try {
       await latest.current.flush();
       if (active.cancelled || operation.current !== active || latest.current.projectId !== projectId) return;
-      const context = buildPlannerContext(latest.current.current(), projectId, latest.current.selectedId);
-      const draft = await generatePlan(active.id, model, prompt.trim(), context);
-      if (!mounted.current || active.cancelled || operation.current !== active) return;
       const current = latest.current.current();
-      const currentProject = current.projects.find(project => project.id === current.activeProjectId) ?? current.projects[0];
-      if (latest.current.projectId !== projectId || currentProject?.id !== projectId) throw new Error('Project changed. Generate again in the current project.');
-      let created: PlannerBatch | null = null;
-      latest.current.update(workspace => {
-        const result = applyPlannerDraft(workspace, projectId, draft);
-        created = result.batch;
-        return result.workspace;
-      });
-      // update invokes the callback synchronously against the latest workspace.
-      const additions = created as PlannerBatch | null;
-      if (!additions || (!additions.items.length && !additions.links.length)) { setMessage('No new items or links were needed.'); return; }
-      applied = true;
-      pendingReveal.current = { projectId, ids: additions.items.map(item => item.id) };
-      active.kind = 'save'; setBatch(additions); setPhase('saving'); setMessage('Saving planner…');
-      await latest.current.flush();
-      if (!mounted.current) return;
-      const summary = `Created ${additions.items.length} items and ${additions.links.length} links. Saved locally.`;
-      setMessage(summary);
-      pendingReveal.current = null;
-      if (latest.current.projectId === projectId) latest.current.onCreated(additions.items.map(item => item.id), summary);
+      const scope: PlannerScope = { selectedId, baseline: selectedId ? structuredClone(current.items.find(item => item.id === selectedId) ?? null) : null };
+      const context = buildPlannerContext(current, projectId, selectedId, action);
+      const value = await generatePlan(active.id, model, prompt.trim(), context);
+      if (!mounted.current || active.cancelled || operation.current !== active || latest.current.projectId !== projectId) return;
+      if (selectedId && latest.current.selectedId !== selectedId) throw new Error('Selection changed. Generate again for the selected item.');
+      const draft = parsePlannerDraft(value);
+      // Validate the complete proposal without committing its temporary result.
+      applyPlannerDraft(latest.current.current(), projectId, draft, scope);
+      previewScope.current = { projectId, scope };
+      previewRef.current = draft;
+      setPreviewValue(draft);
+      setMessage('Review and edit the proposal, then Apply.');
     } catch (failure) {
-      if (mounted.current && !active.cancelled && operation.current === active) {
-        setError(applied ? `Planner created but not saved. Use Retry save; generation will not run again. ${errorText(failure)}` : errorText(failure));
-        setMessage('');
-      }
+      if (mounted.current && !active.cancelled && operation.current === active) { setError(errorText(failure)); setMessage(''); }
     } finally {
       if (operation.current === active && !active.cancelled) { operation.current = null; if (mounted.current) setPhase('idle'); }
+    }
+  }
+
+  async function apply() {
+    const proposal = previewRef.current;
+    const target = previewScope.current;
+    if (!proposal || !target || operation.current || latest.current.saveError) return;
+    if (target.scope.selectedId && latest.current.selectedId !== target.scope.selectedId) { setError('Selection changed. Discard this preview and generate again.'); return; }
+    if (latest.current.projectId !== target.projectId) { clearPreview(); setError('Project changed. Generate again.'); return; }
+    const active = { id: crypto.randomUUID(), kind: 'save' as const, cancelled: false };
+    operation.current = active; setPhase('saving'); setError('');
+    let applied = false;
+    try {
+      let additions: PlannerBatch | null = null;
+      latest.current.update(workspace => {
+        if (latest.current.projectId !== target.projectId) throw new Error('Project changed. Generate again.');
+        const result = applyPlannerDraft(workspace, target.projectId, proposal, target.scope);
+        additions = result.batch;
+        return result.workspace;
+      });
+      const saved = additions as PlannerBatch | null;
+      if (!saved) throw new Error('Plan was not applied.');
+      applied = true;
+      clearPreview();
+      setBatch(saved);
+      pendingReveal.current = { projectId: target.projectId, ids: saved.items.map(item => item.id) };
+      await latest.current.flush();
+      if (!mounted.current) return;
+      const summary = `Applied ${saved.items.length} items, ${saved.links.length} links${saved.updates?.length ? ', and selected-item planning details' : ''}. Saved locally.`;
+      setMessage(summary);
+      pendingReveal.current = null;
+      if (latest.current.projectId === target.projectId) latest.current.onCreated(saved.items.map(item => item.id), summary);
+    } catch (failure) {
+      if (mounted.current) { setError(applied ? `Plan applied but not saved. Use Retry save; the plan will not be applied again. ${errorText(failure)}` : errorText(failure)); setMessage(''); }
+    } finally {
+      if (operation.current === active) { operation.current = null; if (mounted.current) setPhase('idle'); }
     }
   }
 
@@ -162,7 +213,7 @@ export function usePlanner(options: Options) {
       pendingReveal.current = null;
       setBatch(null);
       await latest.current.flush();
-      setMessage('Generated batch removed. Saved locally.');
+      setMessage('Applied plan undone. Saved locally.');
     } catch (failure) { if (mounted.current) setError(errorText(failure)); }
     finally { operation.current = null; if (mounted.current) setPhase('idle'); }
   }
@@ -184,5 +235,5 @@ export function usePlanner(options: Options) {
   }
 
   const undoAvailable = !!batch && canUndoPlannerBatch(options.workspace, batch) && phase === 'idle';
-  return { connection, phase, message, error, prompt, setPrompt, model, setModel, executable, setExecutable, connect, disconnect, generate, cancel, undo, retrySave, undoAvailable, hasBatch: !!batch };
+  return { action, setAction, preview, setPreview, apply, discard, connection, phase, message, error, prompt, setPrompt, model, setModel, executable, setExecutable, connect, disconnect, generate, cancel, undo, retrySave, undoAvailable, hasBatch: !!batch };
 }

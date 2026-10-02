@@ -128,9 +128,7 @@ async fn import_workspace(app: tauri::AppHandle) -> Result<Option<Workspace>, St
         if bytes.len() as u64 > MAX_IMPORT_BYTES {
             return Err("Backup exceeds the 10 MB import limit.".into());
         }
-        let workspace: Workspace = serde_json::from_slice(&bytes)
-            .map_err(|_| "This is not a version 1 Codebase Planner backup.".to_string())?;
-        workspace.validate()?;
+        let workspace = model::from_backup(&bytes)?;
         Ok(Some(workspace))
     }).await
 }

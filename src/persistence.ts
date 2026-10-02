@@ -1,12 +1,11 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { emptyWorkspace, validateWorkspace, type Workspace } from './domain';
+import { emptyWorkspace, normalizeWorkspace, validateWorkspace, type Workspace } from './domain';
 
 export const native = isTauri();
 const storageKey = 'codebase-planner-preview-v1';
 export async function loadWorkspace(): Promise<Workspace> {
   const value = native ? await invoke<Workspace>('load_workspace') : JSON.parse(localStorage.getItem(storageKey) ?? JSON.stringify(emptyWorkspace()));
-  validateWorkspace(value);
-  return value;
+  return normalizeWorkspace(value);
 }
 export async function saveWorkspace(workspace: Workspace): Promise<void> {
   validateWorkspace(workspace);
@@ -24,7 +23,10 @@ export async function exportWorkspace(workspace: Workspace): Promise<string | nu
   return anchor.download;
 }
 export async function importWorkspace(): Promise<Workspace | null> {
-  if (native) return invoke('import_workspace');
+  if (native) {
+    const value = await invoke<unknown>('import_workspace');
+    return value === null ? null : normalizeWorkspace(value);
+  }
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = '.json,application/json';
@@ -34,7 +36,7 @@ export async function importWorkspace(): Promise<Workspace | null> {
         const file = input.files?.[0];
         if (!file) return resolve(null);
         if (file.size > 10 * 1024 * 1024) throw new Error('Backup exceeds the 10 MB limit.');
-        const value: unknown = JSON.parse(await file.text()); validateWorkspace(value); resolve(value);
+        const value: unknown = JSON.parse(await file.text()); resolve(normalizeWorkspace(value));
       } catch (error) { reject(error); }
     };
     input.click();

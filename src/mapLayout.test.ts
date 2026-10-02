@@ -4,7 +4,7 @@ import type { WorkItem } from './domain';
 
 const item = (id: string, parentId: string | null, order = 0): WorkItem => ({
   id, projectId: 'project', parentId, order, title: id, kind: 'todo', status: 'todo',
-  priority: 'normal', tags: [], notes: '', createdAt: '', updatedAt: '', x: -1, y: -1,
+  priority: 'normal', tags: [], notes: '', planningLane: null, details: {}, createdAt: '', updatedAt: '', x: -1, y: -1,
 });
 
 describe('arrangeItems', () => {

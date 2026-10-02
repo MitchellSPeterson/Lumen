@@ -23,6 +23,8 @@ pub struct WorkItem {
     pub priority: String,
     pub tags: Vec<String>,
     pub notes: String,
+    pub planning_lane: Option<String>,
+    pub details: serde_json::Value,
     pub created_at: String,
     pub updated_at: String,
     pub x: f64,
@@ -66,7 +68,7 @@ pub struct Workspace {
 impl Default for Workspace {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             projects: Vec::new(),
             items: Vec::new(),
             links: Vec::new(),
@@ -78,7 +80,7 @@ impl Default for Workspace {
 
 impl Workspace {
     pub fn validate(&self) -> Result<(), String> {
-        if self.version != 1 {
+        if self.version != 2 {
             return Err("Unsupported workspace version.".into());
         }
 
@@ -96,9 +98,11 @@ impl Workspace {
             if item.id.is_empty() || items.insert(item.id.as_str(), item).is_some()
                 || !projects.contains(item.project_id.as_str())
                 || item.title.trim().is_empty()
-                || !matches!(item.kind.as_str(), "todo" | "feature" | "bug")
+                || !matches!(item.kind.as_str(), "idea" | "todo" | "feature" | "bug")
                 || !matches!(item.status.as_str(), "todo" | "in_progress" | "done")
                 || !matches!(item.priority.as_str(), "low" | "normal" | "high")
+                || item.planning_lane.as_deref().is_some_and(|lane| !matches!(lane, "now" | "next" | "later"))
+                || !valid_details(&item.details)
                 || !item.order.is_finite() || !item.x.is_finite() || !item.y.is_finite()
             {
                 return Err("Workspace contains an invalid item.".into());
@@ -146,7 +150,7 @@ impl Workspace {
         }
         for (project_id, view) in &self.views {
             if !projects.contains(project_id.as_str())
-                || !matches!(view.mode.as_str(), "map" | "list")
+                || !matches!(view.mode.as_str(), "outline" | "map" | "board")
                 || !view.viewport.x.is_finite() || !view.viewport.y.is_finite()
                 || !view.viewport.zoom.is_finite() || view.viewport.zoom <= 0.0
                 || view.collapsed.iter().any(|id| {
@@ -158,4 +162,56 @@ impl Workspace {
         }
         Ok(())
     }
+}
+
+fn valid_details(value: &serde_json::Value) -> bool {
+    let Some(details) = value.as_object() else { return false };
+    if let Some(feature) = details.get("feature") {
+        let Some(feature) = feature.as_object() else { return false };
+        if ["problem", "expectedBehavior", "openQuestions"].iter().any(|key| !feature.get(*key).is_some_and(|value| value.is_string())) { return false; }
+        let Some(criteria) = feature.get("acceptanceCriteria").and_then(|value| value.as_array()) else { return false };
+        let mut ids = HashSet::new();
+        for criterion in criteria {
+            let Some(id) = criterion.get("id").and_then(|value| value.as_str()) else { return false };
+            if id.is_empty() || !ids.insert(id) || !criterion.get("text").is_some_and(|value| value.is_string()) || !criterion.get("checked").is_some_and(|value| value.is_boolean()) { return false; }
+        }
+    }
+    if let Some(bug) = details.get("bug") {
+        let Some(bug) = bug.as_object() else { return false };
+        if ["stepsToReproduce", "expectedBehavior", "actualBehavior"].iter().any(|key| !bug.get(*key).is_some_and(|value| value.is_string())) { return false; }
+    }
+    true
+}
+
+pub fn from_backup(bytes: &[u8]) -> Result<Workspace, String> {
+    let mut value: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|_| "This is not a Codebase Planner backup.".to_string())?;
+    let version = value.get("version").and_then(|value| value.as_u64());
+    if !matches!(version, Some(1 | 2)) { return Err("Unsupported workspace version.".into()); }
+    if version == Some(1) {
+        value["version"] = serde_json::json!(2);
+        if let Some(items) = value.get_mut("items").and_then(|value| value.as_array_mut()) {
+            for item in items {
+                if let Some(item) = item.as_object_mut() {
+                    item.entry("planningLane").or_insert(serde_json::Value::Null);
+                    item.entry("details").or_insert(serde_json::json!({}));
+                }
+            }
+        }
+        if let Some(views) = value.get_mut("views").and_then(|value| value.as_object_mut()) {
+            for view in views.values_mut() {
+                if view.get("mode").and_then(|value| value.as_str()) == Some("list") {
+                    view["mode"] = serde_json::json!("outline");
+                }
+            }
+        }
+    }
+    if value.get("activeProjectId").is_none() { return Err("Backup is missing the active project field.".into()); }
+    if value.get("items").and_then(|value| value.as_array()).is_some_and(|items| items.iter().any(|item| item.get("parentId").is_none() || item.get("planningLane").is_none() || item.get("details").is_none())) {
+        return Err("Backup contains an invalid item.".into());
+    }
+    let workspace: Workspace = serde_json::from_value(value)
+        .map_err(|_| "Backup contains malformed workspace fields.".to_string())?;
+    workspace.validate()?;
+    Ok(workspace)
 }
