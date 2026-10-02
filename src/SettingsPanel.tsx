@@ -34,7 +34,6 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <h3>ChatGPT connection</h3>
         <div className="settings-account"><span className={`planner-composer__dot${planner.connection?.connected ? ' is-connected' : ''}`} aria-hidden="true" /><div><strong>{planner.connection?.connected ? 'Connected to Codex' : 'Codex isn’t connected'}</strong>{planner.connection?.connected && <span>{planner.connection.account}</span>}</div></div>
         <div className="settings-buttons">
-          <button className="secondary-button" disabled={!native || busy} onClick={() => void planner.connect()}>{planner.phase === 'connecting' ? 'Connecting…' : planner.connection?.connected ? 'Reconnect' : 'Connect Codex'}</button>
           {planner.connection?.connected ? <button className="secondary-button" disabled={busy} onClick={() => void planner.disconnect()}>{planner.phase === 'signing-out' ? 'Signing out…' : 'Sign out'}</button> : <button className="primary-button" disabled={!native || busy} onClick={() => void planner.connect(true)}>{planner.phase === 'signing-in' ? 'Signing in…' : 'Continue with ChatGPT'}</button>}
           {(planner.phase === 'connecting' || planner.phase === 'signing-in') && <button className="secondary-button" onClick={() => void planner.cancel()}>Cancel</button>}
         </div>
@@ -43,7 +42,7 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <label className="form-field">Default model<select value={planner.model} disabled={!planner.connection?.connected || busy} onChange={event => planner.setModel(event.currentTarget.value)}><option value="">Choose a model</option>{planner.connection?.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}{planner.model && !modelAvailable && <option value={planner.model} disabled>{planner.model} · unavailable</option>}</select></label>
         <p className="form-hint">Luna is preferred when available. Your selection is remembered; the app never changes models automatically.</p>
         <label className="form-field">Codex executable path<input value={planner.executable} maxLength={4096} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Automatic discovery" onChange={event => planner.setExecutable(event.currentTarget.value)} /></label>
-        <p className="form-hint">Leave empty for automatic discovery. Reconnect after changing this path.</p>
+        <p className="form-hint">Leave empty for automatic discovery. Restart the app after changing this path.</p>
       </>}
       {section === 'general' && <>
         <h3>Local workspace</h3>
