@@ -2,27 +2,31 @@ import { useState } from 'react';
 import { Check, Moon, Sun } from 'lucide-react';
 import { accents, type Appearance } from './appearance';
 import type { usePlanner } from './usePlanner';
+import { formatShortcut, type ShortcutBindings } from './shortcuts';
+import { ShortcutSettings } from './ShortcutSettings';
 import './SettingsPanel.css';
 
-type Section = 'appearance' | 'codex' | 'general';
+export type SettingsSection = 'appearance' | 'codex' | 'general' | 'shortcuts';
 type Props = {
   appearance: Appearance;
   onAppearance(patch: Partial<Appearance>): void;
   planner: ReturnType<typeof usePlanner>;
   native: boolean;
-  initialSection: Section;
+  initialSection: SettingsSection;
+  shortcuts: ShortcutBindings;
+  onShortcutsChange(bindings: ShortcutBindings): void;
   backupBusy: boolean;
   canExport: boolean;
   onBackup(action: 'export' | 'import'): void;
 };
 
-export function SettingsPanel({ appearance, onAppearance, planner, native, initialSection, backupBusy, canExport, onBackup }: Props) {
+export function SettingsPanel({ appearance, onAppearance, planner, native, initialSection, shortcuts, onShortcutsChange, backupBusy, canExport, onBackup }: Props) {
   const [section, setSection] = useState(initialSection);
   const busy = planner.phase !== 'idle';
   const modelAvailable = planner.connection?.models.some(option => option.id === planner.model);
   return <section className="settings-panel" aria-label="App settings">
     <nav className="settings-nav" aria-label="Settings sections">
-      {([['appearance', 'Appearance'], ['codex', 'ChatGPT & Codex'], ['general', 'General']] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
+      {([['appearance', 'Appearance'], ['codex', 'ChatGPT & Codex'], ['shortcuts', 'Keyboard shortcuts'], ['general', 'General']] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
     </nav>
     <div className="settings-content">
       {section === 'appearance' && <>
@@ -43,13 +47,14 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <p className="form-hint">Luna is preferred when available. Your selection is remembered; the app never changes models automatically.</p>
         <h2>Planning with AI</h2>
         <p className="form-hint">Plan project sends your prompt and full project planning context to Codex. Item actions send your prompt, selected item, and its related work. Review the proposal before applying changes.</p>
-        <p className="form-hint">In the prompt, Enter adds a new line; ⌘/Ctrl + Enter generates a plan. Prompts support up to 8,000 characters.</p>
+        <p className="form-hint">In the prompt, Enter adds a new line; {shortcuts.generatePlan ? `${formatShortcut(shortcuts.generatePlan)} generates a plan.` : 'the Generate button generates a plan.'} Prompts support up to 8,000 characters.</p>
         <details className="settings-advanced"><summary>Advanced connection settings</summary><label className="form-field">Codex executable path<input value={planner.executable} maxLength={4096} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Automatic discovery" onChange={event => planner.setExecutable(event.currentTarget.value)} /></label>
         <p className="form-hint">Leave empty for automatic discovery. Restart the app after changing this path.</p></details>
       </>}
+      {section === 'shortcuts' && <ShortcutSettings bindings={shortcuts} onChange={onShortcutsChange} />}
       {section === 'general' && <>
         <h2>Local workspace</h2>
-        <p className="form-hint">Projects, items, links, and map positions save automatically on this device. Backups include planning data; appearance, model preferences, and credentials stay separate.</p>
+        <p className="form-hint">Projects, items, links, and map positions save automatically on this device. Backups include planning data; appearance, keyboard shortcuts, model preferences, and credentials stay separate.</p>
         <div className="settings-buttons"><button className="secondary-button" disabled={backupBusy || busy || !canExport} onClick={() => onBackup('export')}>Export backup</button><button className="secondary-button" disabled={backupBusy || busy} onClick={() => onBackup('import')}>Import backup</button></div>
         <h2>System dictation</h2>
         <p className="form-hint">On macOS, enable Dictation in System Settings → Keyboard → Dictation. Focus a prompt and use your configured shortcut or Edit → Start Dictation. macOS handles speech recognition.</p>

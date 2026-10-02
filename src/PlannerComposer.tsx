@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import type { ItemDetails, WorkItem } from './domain';
 import type { DraftItem, PlannerAction, PlannerDraft, Reference } from './planner';
+import { formatShortcut, matchesShortcut, shortcutAria } from './shortcuts';
 import './PlannerComposer.css';
 
 type Phase = 'idle' | 'connecting' | 'signing-in' | 'signing-out' | 'generating' | 'saving';
@@ -22,6 +23,7 @@ type PlannerComposerProps = {
   prompt: string;
   model: string;
   native: boolean;
+  generateShortcut: string | null;
   onPromptChange(value: string): void;
   onGenerate(): void;
   onCancel(): void;
@@ -37,6 +39,7 @@ export function PlannerComposer({
   prompt,
   model,
   native,
+  generateShortcut,
   onPromptChange,
   onGenerate,
   onCancel,
@@ -69,7 +72,7 @@ export function PlannerComposer({
       }
       return;
     }
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    if (matchesShortcut(event.nativeEvent, generateShortcut)) {
       event.preventDefault();
       event.stopPropagation();
       if (!generateDisabled) generate();
@@ -97,7 +100,7 @@ export function PlannerComposer({
           onKeyDown={handlePromptKeyDown}
         />
         {canCancel ? <button type="button" className="planner-composer__send" onClick={onCancel} aria-label="Cancel generation" title="Cancel generation"><Square size={14} aria-hidden="true" /></button>
-          : <span className="planner-composer__send-slot" title={generateLabel}><button type="button" className="planner-composer__send" onClick={generate} disabled={generateDisabled} aria-label={generateLabel}><ArrowUp size={17} aria-hidden="true" /></button></span>}
+          : <span className="planner-composer__send-slot" title={`${generateLabel}${generateShortcut ? ` (${formatShortcut(generateShortcut)})` : ''}`}><button type="button" className="planner-composer__send" onClick={generate} disabled={generateDisabled} aria-label={generateLabel} aria-keyshortcuts={shortcutAria(generateShortcut)}><ArrowUp size={17} aria-hidden="true" /></button></span>}
       </div>
 
       {preview && <PlanPreview draft={preview} existingItems={existingItems} disabled={busy} onChange={onPreviewChange} />}
