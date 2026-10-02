@@ -32,8 +32,8 @@ export const plannerOutputSchema = {
           parent: {
             anyOf: [
               { type: 'null' },
-              { type: 'object', additionalProperties: false, required: ['type', 'id'], properties: { type: { const: 'new' }, id: { type: 'string', minLength: 1, maxLength: MAX_KEY_LENGTH } } },
-              { type: 'object', additionalProperties: false, required: ['type', 'id'], properties: { type: { const: 'existing' }, id: { type: 'string', minLength: 1, maxLength: MAX_KEY_LENGTH } } },
+              { type: 'object', additionalProperties: false, required: ['type', 'id'], properties: { type: { type: 'string', enum: ['new'] }, id: { type: 'string', minLength: 1, maxLength: MAX_KEY_LENGTH } } },
+              { type: 'object', additionalProperties: false, required: ['type', 'id'], properties: { type: { type: 'string', enum: ['existing'] }, id: { type: 'string', minLength: 1, maxLength: MAX_KEY_LENGTH } } },
             ],
           },
         },

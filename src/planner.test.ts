@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPlannerDraft, buildPlannerContext, canUndoPlannerBatch, undoPlannerBatch } from './planner';
+import { applyPlannerDraft, buildPlannerContext, canUndoPlannerBatch, plannerOutputSchema, undoPlannerBatch } from './planner';
 import { defaultView, type Project, type WorkItem, type Workspace } from './domain';
 
 const project = (id: string): Project => ({ id, name: `Project ${id}`, folder: '', createdAt: '' });
@@ -20,6 +20,22 @@ const row = (key: string, parent: null | { type: 'new' | 'existing'; id: string 
 const link = (source: { type: 'new' | 'existing'; id: string }, target: { type: 'new' | 'existing'; id: string }) => ({ source, target });
 
 describe('planner draft contract', () => {
+  it('declares types throughout the strict output schema, including nullable parent branches', () => {
+    const check = (schema: Record<string, unknown>, path: string) => {
+      expect(schema.type || schema.$ref || schema.anyOf, `Missing type at ${path}`).toBeTruthy();
+      if (schema.type === 'object') {
+        const properties = schema.properties as Record<string, Record<string, unknown>>;
+        expect(schema.additionalProperties, path).toBe(false);
+        expect(new Set(schema.required as string[]), path).toEqual(new Set(Object.keys(properties)));
+        for (const [key, property] of Object.entries(properties)) check(property, `${path}.${key}`);
+      }
+      if (schema.type === 'array') check(schema.items as Record<string, unknown>, `${path}[]`);
+      if (Array.isArray(schema.anyOf)) schema.anyOf.forEach((branch, index) => check(branch, `${path}.anyOf[${index}]`));
+      if (schema.$defs) for (const [key, definition] of Object.entries(schema.$defs)) check(definition, `${path}.$defs.${key}`);
+    };
+    check(plannerOutputSchema, '$');
+  });
+
   it('rejects malformed drafts atomically and leaves the input workspace unchanged', () => {
     const invalid = [
       { items: [row('a')], links: [], extra: true },

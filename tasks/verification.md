@@ -4,7 +4,7 @@ Implementation finished on `codex/automatic-planner`. Live acceptance remains pe
 
 ## Passed
 
-- `npm test`: 27 tests across 4 files; includes 7 planner tests for strict/atomic validation, nested layout, bounded context/output, selected scope, and safe Undo.
+- `npm test`: 28 tests across 4 files; includes 8 planner tests for strict/atomic validation, nested layout, bounded context/output, selected scope, and safe Undo.
 - `npm run build`: TypeScript and production bundle pass. Existing bundle-size warning remains (about 631 kB main chunk).
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib -q`: 10 tests pass, including fake-child protocol buffering, bounded messages, immediate cancellation, and protected credential-file checks.
 - `cargo check --all-targets`: passed during backend integration.
@@ -32,3 +32,11 @@ No real OAuth consent, authenticated inference, microphone input, or generated-c
 Bundle: `src-tauri/target/release/bundle/macos/Codebase Planner.app`.
 Native composer screenshot: `/Users/mitchell/.codex/visualizations/2026/10/02/01a0fa4c-b65f-7af0-be5b-895628ada82c/native-planner.png`.
 Browser composer screenshot: `/Users/mitchell/.codex/visualizations/2026/10/02/01a0fa4c-b65f-7af0-be5b-895628ada82c/planner-composer.jpg`.
+
+## Live schema correction acceptance
+
+User encountered `invalid_json_schema`: parent reference discriminators lacked a JSON `type`. Both now use `type: string` with single-value enums. Added recursive strict-schema regression coverage. Production TypeScript build and macOS bundle pass.
+
+Restored the user’s dashboard prompt after loading the corrected build, reconnected the existing app-owned session, and retried with `gpt-6-luna`. Request succeeded: one analytics-dashboard feature with four nested todos, shown in the map; Save status reports Saved locally and Undo AI batch is available. Read-only SQLite verification confirms all five records are durable. No extra inference was issued. Live spoken Dictation, cancellation race, failed-save retry, and Undo remain pending.
+
+Successful map screenshot: `/Users/mitchell/.codex/visualizations/2026/10/02/01a0fa4c-b65f-7af0-be5b-895628ada82c/dashboard-plan-fixed.png`. Earlier pending-live notes describe the initial build; this live correction verifies Luna inference and saved typed-prompt creation.
