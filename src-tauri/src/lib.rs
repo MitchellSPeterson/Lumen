@@ -1,11 +1,13 @@
 mod db;
 mod model;
+mod codex;
 
 use model::Workspace;
 use std::{fs::File, io::{Read, Write}, path::PathBuf};
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 struct ExitState(AtomicBool);
 
@@ -63,6 +65,7 @@ async fn inspect_folder(folder: String) -> Result<bool, String> {
 #[tauri::command]
 fn finish_quit(app: tauri::AppHandle) {
     app.state::<ExitState>().0.store(true, Ordering::SeqCst);
+    codex::cancel_all(&app.state::<Arc<codex::CodexState>>());
     app.exit(0);
 }
 
@@ -135,6 +138,7 @@ async fn import_workspace(app: tauri::AppHandle) -> Result<Option<Workspace>, St
 pub fn run() {
     let result = tauri::Builder::default()
         .manage(ExitState(AtomicBool::new(false)))
+        .manage(Arc::new(codex::CodexState::default()))
         .menu(|app| {
             let menu = tauri::menu::Menu::default(app)?;
             #[cfg(target_os = "macos")]
@@ -174,10 +178,18 @@ pub fn run() {
             finish_quit,
             export_workspace,
             import_workspace,
+            codex::codex_connect,
+            codex::codex_sign_in,
+            codex::codex_generate,
+            codex::codex_cancel,
+            codex::codex_disconnect,
         ])
         .build(tauri::generate_context!());
     match result {
         Ok(app) => app.run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                codex::cancel_all(&app.state::<Arc<codex::CodexState>>());
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 if !app.state::<ExitState>().0.load(Ordering::SeqCst) {
                   if let Some(window) = app.get_webview_window("main") {

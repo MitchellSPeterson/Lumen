@@ -1,0 +1,36 @@
+.planner-composer{display:flex;flex-direction:column;gap:9px;min-width:0}
+.planner-composer__connection{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;min-height:35px;padding-bottom:13px;border-bottom:1px solid var(--line);margin-bottom:3px}
+.planner-composer__connection-copy,.planner-composer__connection-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.planner-composer__connection-state{font-size:12px;font-weight:500}
+.planner-composer__account{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.planner-composer__dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.planner-composer__dot.is-connected{background:var(--success)}
+.planner-composer__connect{flex-shrink:0}
+.planner-composer__sign-in{padding:7px 2px;color:var(--accent-text);font-size:11px;text-align:right;white-space:nowrap}
+.planner-composer__sign-in:hover{color:var(--text)}
+.planner-composer__notice,.planner-composer__hint,.planner-composer__dictation-hint{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+.planner-composer__notice{padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--subtle)}
+.planner-composer__label{display:block;margin-top:6px;color:var(--text);font-size:12px;font-weight:500}
+.planner-composer__prompt,.planner-composer__input,.planner-composer__select{width:100%;min-width:0;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--text);font-size:12px}
+.planner-composer__prompt{resize:vertical;min-height:142px;padding:11px;line-height:1.55}
+.planner-composer__prompt:focus,.planner-composer__input:focus,.planner-composer__select:focus{border-color:var(--accent-text)}
+.planner-composer__prompt-meta{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:10px}
+.planner-composer__dictation-hint{font-size:10px}
+.planner-composer__options{display:grid;grid-template-columns:minmax(70px,1fr) minmax(0,1.4fr);align-items:center;gap:10px;margin-top:5px}
+.planner-composer__options .planner-composer__label{margin:0}
+.planner-composer__select,.planner-composer__input{height:36px;padding:0 10px}
+.planner-composer__location{padding-top:2px}
+.planner-composer__location summary{width:max-content;color:var(--muted);font-size:11px;cursor:pointer}
+.planner-composer__location[open] summary{margin-bottom:9px}
+.planner-composer__location .planner-composer__label{margin:0 0 6px;font-size:11px}
+.planner-composer__hint{margin-top:5px;font-size:10px}
+.planner-composer__status{min-height:0;color:var(--muted);font-size:11px;line-height:1.5}
+.planner-composer__error{margin:0;color:var(--danger);font-size:11px;line-height:1.5}
+.planner-composer__actions{display:flex;justify-content:flex-end;gap:9px;margin-top:9px;padding-top:13px;border-top:1px solid var(--line)}
+.planner-composer__generate{min-width:118px}
+.dialog:has(.planner-composer){width:560px}
+.planner-heading-actions{display:flex;align-items:center;gap:10px}
+.planner-batch-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 30px 12px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--muted);font-size:11px}
+.planner-batch-banner .text-button{margin:0;flex-shrink:0;font-size:11px}
+@media(max-width:720px){.planner-heading-actions{flex-wrap:wrap;justify-content:flex-end}.planner-batch-banner{margin-left:15px;margin-right:15px}}
+@media(max-width:520px){.planner-composer__connection{align-items:flex-start;flex-direction:column}.planner-composer__connection-actions{flex-wrap:wrap}.planner-composer__options{grid-template-columns:1fr;gap:5px}.planner-composer__prompt-meta{font-size:9px}}

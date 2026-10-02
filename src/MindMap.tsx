@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyNodeChanges, Background, BackgroundVariant, Controls, Handle, MiniMap,
-  Position, ReactFlow, type Connection, type Edge, type Node, type NodeChange,
+  Position, ReactFlow, useNodesInitialized, useReactFlow, type Connection, type Edge, type Node, type NodeChange,
   type NodeProps, type Viewport,
 } from '@xyflow/react';
 import { Bug, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDashed, FolderKanban, ListTodo, Plus, Sparkles } from 'lucide-react';
@@ -15,6 +15,7 @@ export interface MindMapProps {
   view: ProjectView;
   selectedId: string | null;
   matchingIds: Set<string>;
+  revealIds?: string[];
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onAdd: (parentId: string | null) => void;
@@ -174,6 +175,18 @@ function makeEdges(project: Project, items: WorkItem[], links: RelatedLink[], no
   return [...hierarchy, ...related];
 }
 
+function RevealItems({ ids }: { ids?: string[] }) {
+  const ready = useNodesInitialized();
+  const { fitView, getNode } = useReactFlow();
+  const revealed = useRef<string[] | undefined>(undefined);
+  useEffect(() => {
+    if (!ready || !ids?.length || ids === revealed.current || !ids.every(id => getNode(id))) return;
+    revealed.current = ids;
+    void fitView({ nodes: ids.map(id => ({ id })), padding: 0.2, minZoom: 0.3, maxZoom: 1 });
+  }, [ready, ids, fitView, getNode]);
+  return null;
+}
+
 function MindMapCanvas(props: MindMapProps) {
   const { project, items, links, view, onSelect, onMove, onLink, onViewport } = props;
   const computedNodes = useMemo(() => makeNodes(props), [props]);
@@ -233,6 +246,7 @@ function MindMapCanvas(props: MindMapProps) {
         aria-label={`${project.name} mind map`}
         proOptions={{ hideAttribution: true }}
       >
+        <RevealItems ids={props.revealIds} />
         <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--map-grid, #d7d8d1)" />
         <MiniMap style={{ width: 120, height: 80 }} pannable zoomable nodeColor={node => node.type === 'root' ? 'var(--accent)' : 'var(--map-node)'} />
         <Controls showInteractive={false} />

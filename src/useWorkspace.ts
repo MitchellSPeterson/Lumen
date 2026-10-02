@@ -68,5 +68,6 @@ export function useWorkspace() {
     }
     return () => { disposed = true; unlisten?.(); unlistenQuit?.(); window.removeEventListener('beforeunload', beforeUnload); };
   }, [flush]);
-  return { workspace, update, loaded, loadError, saveError, saveStatus, flush, load };
+  const current = useCallback(() => latest.current, []);
+  return { workspace, update, loaded, loadError, saveError, saveStatus, flush, load, current };
 }
