@@ -84,3 +84,16 @@
 .search-composer .palette-results button>svg,.search-composer .palette-results button>.kind-icon{flex-shrink:0}
 .search-composer .palette-results p{margin:8px;padding:6px;line-height:1.5}
 @media(max-height:400px){.search-composer{--composer-bottom:20px}}
+
+.workspace-topbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px;padding:12px 24px;border-bottom:1px solid var(--line);flex-shrink:0}
+.workspace-topbar .project-heading{flex:1 1 320px;min-width:0;padding:0}
+.workspace-topbar .project-heading>div{min-width:0}
+.workspace-topbar .heading-eyebrow{font-size:11px;margin-bottom:3px}
+.workspace-topbar .project-heading h1{font-size:22px;line-height:1.25}
+.workspace-topbar .project-heading p{font-size:11px;line-height:1.45;margin-top:4px}
+.workspace-topbar .workspace-toolbar{padding:0;border:0;min-width:0;margin-left:auto;justify-content:flex-end}
+@media(max-width:760px){.workspace-topbar{padding:12px 15px;gap:10px}.workspace-topbar .project-heading{flex-basis:100%}}
+
+.workspace-topbar .workspace-toolbar>button,.workspace-topbar .toolbar-more summary{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;flex-shrink:0}
+.workspace-topbar .view-switch button{justify-content:center;width:32px;height:32px;padding:0}
+.workspace-topbar .toolbar-more summary.active{color:var(--accent-text);background:var(--accent-soft);border-color:var(--accent-text)}
