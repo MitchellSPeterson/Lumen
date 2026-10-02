@@ -16,3 +16,5 @@
 .settings-account span:not(.planner-composer__dot){color:var(--muted);overflow-wrap:anywhere;font-size:11px}
 .settings-buttons{display:flex;flex-wrap:wrap;gap:8px}
 @media(max-width:620px){.settings-panel{grid-template-columns:1fr;gap:18px}.settings-nav{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line);padding:0 0 12px}.settings-nav button{flex:1;white-space:nowrap;text-align:center}}
+
+.settings-advanced{border-top:1px solid var(--line);padding-top:14px}.settings-advanced>summary{cursor:pointer;font-size:12px;color:var(--muted)}.settings-advanced .form-field{margin:14px 0 10px}

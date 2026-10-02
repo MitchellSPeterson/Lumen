@@ -48,3 +48,5 @@
 .planner-preview .text-button{margin:0;font-size:11px}
 .planner-composer__actions{flex-wrap:wrap}
 @media(max-width:520px){.planner-preview__row{grid-template-columns:1fr}}
+
+.planner-composer__intro{margin:0 0 8px;color:var(--muted);font-size:13px;line-height:1.6}.planner-composer__guidance{margin:6px 0}.planner-composer__guidance summary{font-size:12px;color:var(--muted);cursor:pointer}.planner-composer__prompt{font-size:13px}.planner-composer__hint{font-size:11px;line-height:1.6}

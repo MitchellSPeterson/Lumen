@@ -68,6 +68,7 @@ export function PlannerComposer({
 
   return (
     <section className="planner-composer" aria-label="Plan with Codex">
+      <p className="planner-composer__intro">Describe your idea, review the proposal, then add it to your plan. You choose what gets saved.</p>
       <div className="planner-composer__connection">
         <div className="planner-composer__connection-copy">
           <span className={`planner-composer__dot${connection?.connected ? ' is-connected' : ''}`} aria-hidden="true" />
@@ -78,12 +79,12 @@ export function PlannerComposer({
             <span className="planner-composer__account">{connection.account}</span>
           )}
         </div>
-        <button type="button" className="secondary-button" onClick={onOpenSettings} disabled={busy}>Connection settings</button>
+        <button type="button" className="secondary-button" onClick={onOpenSettings} disabled={busy}>{connection?.connected ? 'Connection settings' : 'Connect Codex'}</button>
       </div>
 
       {!native && <p className="planner-composer__notice" role="status">Open the desktop app to connect Codex.</p>}
 
-      <label className="planner-composer__label" htmlFor="planner-action">Planning action</label>
+      <label className="planner-composer__label" htmlFor="planner-action">How can Codex help?</label>
       <select id="planner-action" className="planner-composer__select" value={action} disabled={busy} onChange={event => onActionChange(event.currentTarget.value as PlannerAction)}>
         <option value="project">Plan project</option>
         <option value="clarify" disabled={!selectedTitle}>Clarify selected idea</option>
@@ -107,8 +108,7 @@ export function PlannerComposer({
         <span id="planner-composer-prompt-hint">Enter for a new line · ⌘/Ctrl + Enter to generate</span>
         <span>{prompt.length.toLocaleString()} / 8,000</span>
       </div>
-      <p className="planner-composer__dictation-hint">On macOS, use your configured Dictation shortcut in System Settings → Keyboard → Dictation.</p>
-      <p className="planner-composer__hint">Your prompt and project planning context are sent to Codex. Selected-item actions narrow context to that item and its related work; Plan project uses the full project.</p>
+      <p className="planner-composer__hint">{action === 'project' ? 'Your prompt and full project planning context are sent to Codex.' : 'Your prompt, selected item, and its related work are sent to Codex.'}</p>
 
       <div className="planner-composer__options">
         <label className="planner-composer__label" htmlFor="planner-composer-model">Model</label>
@@ -124,6 +124,7 @@ export function PlannerComposer({
           {model && !modelAvailable && <option value={model} disabled>{model} · unavailable</option>}
         </select>
       </div>
+      <details className="planner-composer__guidance"><summary>Use voice dictation</summary><p className="planner-composer__hint">On macOS, enable Dictation in System Settings → Keyboard → Dictation, then use your configured shortcut while the prompt is focused.</p></details>
       {connection?.connected && !modelAvailable && <p className="planner-composer__hint">Choose an available model. Model changes are always yours to select.</p>}
 
 
@@ -138,7 +139,7 @@ export function PlannerComposer({
         {onRetrySave && <button type="button" className="secondary-button" disabled={busy} onClick={onRetrySave}>Retry save</button>}
         {preview && <><button type="button" className="secondary-button" disabled={busy} onClick={onDiscard}>Discard preview</button><button type="button" className="primary-button" disabled={busy || !!onRetrySave} onClick={onApply}>Apply plan</button></>}
         {canCancel && <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>}
-        <button type="button" className="primary-button planner-composer__generate" onClick={onGenerate} disabled={generateDisabled}>
+        <button type="button" className={`${preview ? 'secondary-button' : 'primary-button'} planner-composer__generate`} onClick={onGenerate} disabled={generateDisabled}>
           {phase === 'generating' ? 'Generating…' : phase === 'saving' ? 'Saving…' : preview ? 'Regenerate' : 'Generate preview'}
         </button>
       </div>
@@ -167,7 +168,7 @@ function PlanPreview({ draft, existingItems, disabled, onChange }: { draft: Plan
       <div className="planner-preview__heading"><strong>New item {index + 1}</strong><button type="button" className="text-button" onClick={() => removeItem(index)}>Remove item</button></div>
       <label>Title<input maxLength={300} value={item.title} onChange={event => editItem(index, { title: event.currentTarget.value })} /></label>
       <div className="planner-preview__row">
-        <label>Kind<select value={item.kind} onChange={event => editItem(index, { kind: event.currentTarget.value as DraftItem['kind'] })}>{['idea', 'feature', 'todo', 'bug'].map(kind => <option key={kind} value={kind}>{kind[0].toUpperCase() + kind.slice(1)}</option>)}</select></label>
+        <label>Kind<select value={item.kind} onChange={event => editItem(index, { kind: event.currentTarget.value as DraftItem['kind'] })}>{['idea', 'feature', 'todo', 'bug'].map(kind => <option key={kind} value={kind}>{kind === 'todo' ? 'Task' : kind[0].toUpperCase() + kind.slice(1)}</option>)}</select></label>
         <label>Priority<select value={item.priority} onChange={event => editItem(index, { priority: event.currentTarget.value as DraftItem['priority'] })}>{['low', 'normal', 'high'].map(priority => <option key={priority} value={priority}>{priority[0].toUpperCase() + priority.slice(1)}</option>)}</select></label>
         <label>Plan<select value={item.planningLane ?? ''} onChange={event => editItem(index, { planningLane: (event.currentTarget.value || null) as DraftItem['planningLane'] })}><option value="">Unplanned</option>{['now', 'next', 'later'].map(lane => <option key={lane} value={lane}>{lane[0].toUpperCase() + lane.slice(1)}</option>)}</select></label>
       </div>

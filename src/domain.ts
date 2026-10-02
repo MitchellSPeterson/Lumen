@@ -21,14 +21,14 @@ export interface Workspace {
   version: 2; projects: Project[]; items: WorkItem[]; links: RelatedLink[];
   views: Record<string, ProjectView>; activeProjectId: string | null;
 }
-export const kindLabels: Record<ItemKind, string> = { idea: 'Idea', todo: 'Todo', feature: 'Feature', bug: 'Bug' };
-export const statusLabels: Record<Status, string> = { todo: 'Todo', in_progress: 'In progress', done: 'Done' };
+export const kindLabels: Record<ItemKind, string> = { idea: 'Idea', todo: 'Task', feature: 'Feature', bug: 'Bug' };
+export const statusLabels: Record<Status, string> = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
 export const planningLaneLabels: Record<Exclude<PlanningLane, null>, string> = { now: 'Now', next: 'Next', later: 'Later' };
 export const emptyWorkspace = (): Workspace => ({ version: 2, projects: [], items: [], links: [], views: {}, activeProjectId: null });
 export const defaultView = (): ProjectView => ({ mode: 'outline', collapsed: [], viewport: { x: 40, y: 40, zoom: 0.85 } });
 export function createItem(projectId: string, kind: ItemKind = 'todo', parentId: string | null = null, count = 0): WorkItem {
   const now = new Date().toISOString();
-  return { id: crypto.randomUUID(), projectId, kind, parentId, order: count, title: `Untitled ${kind}`, status: 'todo', priority: 'normal', tags: [], notes: '', planningLane: null, details: {}, createdAt: now, updatedAt: now, x: parentId ? 560 : 280, y: count * 100 };
+  return { id: crypto.randomUUID(), projectId, kind, parentId, order: count, title: `Untitled ${kindLabels[kind].toLowerCase()}`, status: 'todo', priority: 'normal', tags: [], notes: '', planningLane: null, details: {}, createdAt: now, updatedAt: now, x: parentId ? 560 : 280, y: count * 100 };
 }
 export function descendants(items: WorkItem[], id: string): Set<string> {
   const children = new Map<string, string[]>();

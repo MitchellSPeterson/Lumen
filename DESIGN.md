@@ -45,8 +45,14 @@ Empty, loading, saving, failed save, missing folder, and deletion states are par
 
 ## Layout
 
-Sidebar 240px, inspector 340px, flexible center. The inspector overlays the canvas below 1050px; sidebar collapses independently. Native window minimum 900×620. Map background dots provide spatial reference. List rows use borders rather than nested cards.
+Sidebar 240px, inspector 360px, flexible center. The inspector overlays the canvas below 1050px; sidebar collapses independently. Native window minimum 900×620. Map background dots provide spatial reference. List rows use borders rather than nested cards.
 
 ## Components
 
 Buttons use Lucide icons with visible action text or accessible labels. Map hierarchy edges are solid and related links dashed. Selection uses a muted terracotta border. Notes render Markdown without raw HTML or fetched images. Keyboard actions mirror canvas operations in the inspector.
+
+## Capture and planning
+
+Inbox is the home for top-level ideas. Capture names its destination and keeps focus for the next entry. An idea's editor offers direct conversion into a feature or task without creating a copy. Now, Next, and Later are visible project navigation destinations and use the same labels in list rows and the editor. Type browsing and advanced organization controls use disclosures to keep the common path clear.
+
+List status buttons complete or reopen work; grouping checkboxes appear only after Select items. Filters share one labeled panel with an active count, result summary, and reset action. New-item choices explain each type. Pointer-initiated menus and dialogs use short opacity/scale transitions; keyboard entry is immediate. Reduced motion removes transitions, reduced transparency uses solid surfaces, and increased contrast strengthens borders. At compact widths navigation overlays the workspace, closes on selection, and can be dismissed by tapping outside.

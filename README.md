@@ -1,6 +1,6 @@
 # Codebase Planner
 
-Local desktop workspace for ideas, features, todos, and bugs. Outline, map, and status board share one set of items. Built with Tauri 2, React, TypeScript, React Flow, and SQLite.
+Local desktop workspace for ideas, features, tasks, and bugs. List, map, and status board share one set of items. Built with Tauri 2, React, TypeScript, React Flow, and SQLite.
 
 ## Run
 
@@ -15,9 +15,9 @@ For a browser preview, run `npm run dev` and open http://127.0.0.1:1420. Browser
 
 ## Use
 
-- Create a project, optionally associate a repository folder, and capture a thought in **Add idea**. Enter saves only the title; Cmd/Ctrl+N focuses capture.
-- **Inbox** holds top-level ideas. Classify an idea or place it under another item to organize it without duplication.
-- **Outline** is the default for new projects. Expand branches, drag rows inside another item, or drop between rows to reorder. The Parent selector and Move up/down buttons offer keyboard alternatives.
+- Create a project, optionally associate a repository folder, and capture a thought in **Capture an idea**. **Save idea** or Enter sends it to Inbox; Cmd/Ctrl+N focuses capture.
+- **Inbox** holds top-level ideas. Open an idea and choose **Make a feature** or **Make a task**, then choose **Now**, **Next**, or **Later**. Notes and links stay with the item. You can also move it inside another item under **Organize & move**.
+- **List** is the default for new projects. Choose a planning horizon directly on a row and click its status to complete or reopen work. Use **Select items** to reveal grouping checkboxes. Expand branches, drag rows inside another item, or drop between rows to reorder. The **Inside** selector and **Move up/down** buttons under **Organize & move** offer keyboard alternatives.
 - Select sibling checkboxes and choose **Group into feature**. Existing branches and links stay intact.
 - **Map** shows relationships. Drag nodes to position them, connect handles to relate items, and double-click titles to rename. Arrange recalculates positions; Fit view frames the map.
 - **Board** shows classified items by execution status. Drag cards between columns or use each card's status selector. Now/Next/Later planning is separate from status.

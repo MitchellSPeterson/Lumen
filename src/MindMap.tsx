@@ -6,7 +6,7 @@ import {
 } from '@xyflow/react';
 import { Bug, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDashed, Lightbulb, FolderKanban, ListTodo, Plus, Sparkles } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
-import type { Project, ProjectView, RelatedLink, WorkItem } from './domain';
+import { kindLabels, statusLabels, type Project, type ProjectView, type RelatedLink, type WorkItem } from './domain';
 
 export interface MindMapProps {
   project: Project;
@@ -57,7 +57,7 @@ function ItemNode({ data }: NodeProps<MapNode>) {
       style={{ width: 224, height: 86, boxSizing: 'border-box' }}
       role="button"
       tabIndex={0}
-      aria-label={`${item.title}, ${item.kind}, ${item.status.replace('_', ' ')}`}
+      aria-label={`${item.title}, ${kindLabels[item.kind]}, ${statusLabels[item.status]}`}
       onKeyDown={event => {
         if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
           event.preventDefault();
@@ -67,8 +67,8 @@ function ItemNode({ data }: NodeProps<MapNode>) {
     >
       <Handle type="target" position={Position.Left} className="mindmap-handle" />
       <div className="mindmap-card__top">
-        <span className="mindmap-card__kind"><KindIcon size={15} aria-hidden="true" />{item.kind}</span>
-        <StatusIcon size={15} className={`mindmap-card__status mindmap-card__status--${item.status}`} aria-label={item.status.replace('_', ' ')} />
+        <span className="mindmap-card__kind"><KindIcon size={15} aria-hidden="true" />{kindLabels[item.kind]}</span>
+        <StatusIcon size={15} className={`mindmap-card__status mindmap-card__status--${item.status}`} aria-label={statusLabels[item.status]} />
       </div>
       {editing ? <input className="mindmap-rename nodrag nowheel" aria-label={`Rename ${item.title}`} autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={() => { if (!cancelled.current && draft.trim()) data.onRename(item.id, draft.trim()); setEditing(false); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } if (e.key === 'Escape') { e.stopPropagation(); cancelled.current = true; setEditing(false); } }} /> : <div className="mindmap-card__title" title={item.title} onDoubleClick={e => { e.stopPropagation(); cancelled.current = false; setDraft(item.title); setEditing(true); }}>{item.title}</div>}
       <div className="mindmap-card__actions">

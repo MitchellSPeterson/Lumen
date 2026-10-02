@@ -41,8 +41,8 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         {!native && <p className="planner-composer__notice">Open the desktop app to connect Codex.</p>}
         <label className="form-field">Default model<select value={planner.model} disabled={!planner.connection?.connected || busy} onChange={event => planner.setModel(event.currentTarget.value)}><option value="">Choose a model</option>{planner.connection?.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}{planner.model && !modelAvailable && <option value={planner.model} disabled>{planner.model} · unavailable</option>}</select></label>
         <p className="form-hint">Luna is preferred when available. Your selection is remembered; the app never changes models automatically.</p>
-        <label className="form-field">Codex executable path<input value={planner.executable} maxLength={4096} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Automatic discovery" onChange={event => planner.setExecutable(event.currentTarget.value)} /></label>
-        <p className="form-hint">Leave empty for automatic discovery. Restart the app after changing this path.</p>
+        <details className="settings-advanced"><summary>Advanced connection settings</summary><label className="form-field">Codex executable path<input value={planner.executable} maxLength={4096} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Automatic discovery" onChange={event => planner.setExecutable(event.currentTarget.value)} /></label>
+        <p className="form-hint">Leave empty for automatic discovery. Restart the app after changing this path.</p></details>
       </>}
       {section === 'general' && <>
         <h3>Local workspace</h3>

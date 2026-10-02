@@ -19,16 +19,19 @@ interface OutlineProps {
   items: WorkItem[];
   matchingIds: Set<string>;
   filtered: boolean;
+  selecting: boolean;
   view: ProjectView;
   selectedId: string | null;
   checkedIds: Set<string>;
   onSelect(id: string): void;
+  onStatus(id: string, status: Status): void;
+  onPlan(id: string, lane: WorkItem['planningLane']): void;
   onCheck(id: string, checked: boolean): void;
   onCollapse(id: string): void;
   onMove(id: string, parentId: string | null, beforeId?: string | null): void;
 }
 
-export function Outline({ items, matchingIds, filtered, view, selectedId, checkedIds, onSelect, onCheck, onCollapse, onMove }: OutlineProps) {
+export function Outline({ items, matchingIds, filtered, selecting, view, selectedId, checkedIds, onSelect, onStatus, onPlan, onCheck, onCollapse, onMove }: OutlineProps) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState('');
   const visible = matchingWithAncestors(items, matchingIds);
@@ -54,19 +57,19 @@ export function Outline({ items, matchingIds, filtered, view, selectedId, checke
           onDragEnd={() => { setDragging(null); setDropTarget(''); }}
           onDragOver={event => target(event, item.id)} onDrop={event => drop(event, item.id)}>
           <GripVertical size={13} className="drag-grip" aria-hidden="true" />
-          <input type="checkbox" aria-label={`Select ${item.title} for grouping`} checked={checkedIds.has(item.id)} onChange={event => onCheck(item.id, event.target.checked)} />
+          {selecting && <input type="checkbox" aria-label={`Select ${item.title} for grouping`} checked={checkedIds.has(item.id)} onChange={event => onCheck(item.id, event.target.checked)} />}
           <button className={`tree-disclosure ${children ? '' : 'invisible'}`} aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${item.title}`} aria-expanded={!collapsed} tabIndex={children ? 0 : -1} disabled={filtered} onClick={() => onCollapse(item.id)}>{collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</button>
           <button className="outline-title" onClick={() => onSelect(item.id)}><span className={`kind-icon ${item.kind}`}><KindIcon kind={item.kind} /></span><span className={item.status === 'done' ? 'completed' : ''}>{item.title}</span></button>
-          <span className={`status-label ${item.status}`}><StatusIcon status={item.status} />{statusLabels[item.status]}</span>
-          <span className={`planning-label ${item.planningLane ?? ''}`}>{item.planningLane ? planningLaneLabels[item.planningLane] : 'Unplanned'}</span>
+          {item.kind === 'idea' ? <span className="status-label idea-status">Idea</span> : <button className={`status-label status-toggle ${item.status}`} aria-label={`${item.status === 'done' ? 'Reopen' : 'Complete'} ${item.title}`} title={item.status === 'done' ? 'Mark as to do' : 'Mark as done'} onClick={() => onStatus(item.id, item.status === 'done' ? 'todo' : 'done')}><StatusIcon status={item.status} />{statusLabels[item.status]}</button>}
+          <select className={`planning-label row-plan ${item.planningLane ?? ''}`} aria-label={`Plan for ${item.title}`} value={item.planningLane ?? ''} onChange={event => onPlan(item.id, (event.target.value || null) as WorkItem['planningLane'])}><option value="">Unplanned</option>{Object.entries(planningLaneLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
           {dropTarget === item.id && <span className="nest-hint">Move inside</span>}
         </div>
         {children && !collapsed && branch(item.id, depth + 1)}
       </div>;
     });
   }
-  return <div className="outline-surface" aria-label="Project outline">
-    <div className={`outline-root-drop ${dropTarget === 'root' ? 'is-drop-target' : ''}`} onDragOver={event => target(event, 'root')} onDrop={event => drop(event, null)}>{dragging ? 'Drop here to move to project level' : 'Select siblings to group. Drag a row to organize.'}</div>
+  return <div className="outline-surface" aria-label="Project list">
+    <div className={`outline-root-drop ${dropTarget === 'root' ? 'is-drop-target' : ''}`} onDragOver={event => target(event, 'root')} onDrop={event => drop(event, null)}>{dragging ? 'Drop here to move to project level' : selecting ? 'Select items inside the same parent to group them into a feature.' : 'Open an item to add detail. Choose Now, Next, or Later to build your plan.'}</div>
     <div className="outline-columns"><span>Item</span><span>Status</span><span>Plan</span></div>
     {branch(null, 0)}
   </div>;
