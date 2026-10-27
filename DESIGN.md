@@ -1,5 +1,5 @@
 ---
-name: Codebase Planner
+name: Lumen
 description: Light desktop workspace with an editable project map and shared list.
 colors:
   background: "#faf9f6"

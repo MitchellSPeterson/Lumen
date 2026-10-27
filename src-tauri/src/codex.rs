@@ -360,7 +360,7 @@ fn authorize(app: &tauri::AppHandle, cancelled: &AtomicBool) -> Result<Credentia
                 pairs.append_pair("login_hint", email);
             }
         } else {
-            pairs.append_pair("agent_name_hint", "Codebase Planner");
+            pairs.append_pair("agent_name_hint", "Lumen");
         }
     }
     open_browser(url.as_str())?;
@@ -396,9 +396,9 @@ fn authorize(app: &tauri::AppHandle, cancelled: &AtomicBool) -> Result<Credentia
                     parsed.query_pairs().into_owned().collect();
                 let valid = params.get("state") == Some(&state);
                 let body = if valid {
-                    "Sign-in received. Return to Codebase Planner."
+                    "Sign-in received. Return to Lumen."
                 } else {
-                    "Sign-in state mismatch. Return to Codebase Planner."
+                    "Sign-in state mismatch. Return to Lumen."
                 };
                 let _ = write!(stream, "HTTP/1.1 {}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     if valid { "200 OK" } else { "400 Bad Request" }, body.len(), body);
@@ -659,7 +659,7 @@ impl Server {
             pending: std::collections::VecDeque::new(),
             _home: home,
         };
-        server.request(1, "initialize", json!({"clientInfo":{"name":"Codebase Planner","title":"Codebase Planner","version":env!("CARGO_PKG_VERSION")}}), Instant::now()+Duration::from_secs(20), cancelled)?;
+        server.request(1, "initialize", json!({"clientInfo":{"name":"Lumen","title":"Lumen","version":env!("CARGO_PKG_VERSION")}}), Instant::now()+Duration::from_secs(20), cancelled)?;
         server.write(json!({"method":"initialized"}))?;
         Ok(server)
     }

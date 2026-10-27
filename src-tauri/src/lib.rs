@@ -74,7 +74,7 @@ async fn export_workspace(app: tauri::AppHandle) -> Result<Option<String>, Strin
     blocking(move || {
         let selected = app.dialog().file()
             .add_filter("JSON", &["json"])
-            .set_file_name("codebase-planner.json")
+            .set_file_name("lumen-backup.json")
             .blocking_save_file();
         let Some(selected) = selected else { return Ok(None) };
         let destination = selected.into_path()
@@ -92,6 +92,9 @@ async fn export_workspace(app: tauri::AppHandle) -> Result<Option<String>, Strin
         let workspace = db::load(&connection)?;
         let json = serde_json::to_vec_pretty(&workspace)
             .map_err(|error| format!("Cannot prepare backup: {error}"))?;
+        if json.len() as u64 > MAX_IMPORT_BYTES {
+            return Err("Backup exceeds the 10 MB limit. Use smaller project images or remove unused data before exporting.".into());
+        }
         let parent = destination.parent()
             .ok_or_else(|| "Cannot use export location.".to_string())?;
         let mut temporary = tempfile::NamedTempFile::new_in(parent)
@@ -145,7 +148,7 @@ pub fn run() {
                 if !items.is_empty() {
                     submenu.remove_at(items.len() - 1)?;
                     submenu.append(&tauri::menu::MenuItem::with_id(
-                        app, "planner-quit", "Quit Codebase Planner", true, Some("CmdOrCtrl+Q"),
+                        app, "planner-quit", "Quit Lumen", true, Some("CmdOrCtrl+Q"),
                     )?)?;
                 }
             }
@@ -197,6 +200,6 @@ pub fn run() {
                 }
             }
         }),
-        Err(error) => eprintln!("Cannot start Codebase Planner: {error}"),
+        Err(error) => eprintln!("Cannot start Lumen: {error}"),
     }
 }

@@ -4,10 +4,17 @@ import { accents, type Appearance } from './appearance';
 import type { usePlanner } from './usePlanner';
 import { formatShortcut, type ShortcutBindings } from './shortcuts';
 import { ShortcutSettings } from './ShortcutSettings';
+import { ProjectSettings } from './ProjectSettings';
+import type { Project } from './domain';
+import { Dropdown } from './Dropdown';
 import './SettingsPanel.css';
 
-export type SettingsSection = 'appearance' | 'codex' | 'general' | 'shortcuts';
+export type SettingsSection = 'project' | 'codex' | 'general' | 'shortcuts';
 type Props = {
+  project?: Project;
+  onProjectSave(patch: Pick<Project, 'name' | 'folder' | 'image'>): Promise<void>;
+  onProjectDelete(): void;
+  onProjectCreate(): void;
   appearance: Appearance;
   onAppearance(patch: Partial<Appearance>): void;
   planner: ReturnType<typeof usePlanner>;
@@ -20,20 +27,25 @@ type Props = {
   onBackup(action: 'export' | 'import'): void;
 };
 
-export function SettingsPanel({ appearance, onAppearance, planner, native, initialSection, shortcuts, onShortcutsChange, backupBusy, canExport, onBackup }: Props) {
+export function SettingsPanel({ project, onProjectSave, onProjectDelete, onProjectCreate, appearance, onAppearance, planner, native, initialSection, shortcuts, onShortcutsChange, backupBusy, canExport, onBackup }: Props) {
   const [section, setSection] = useState(initialSection);
   const busy = planner.phase !== 'idle';
   const modelAvailable = planner.connection?.models.some(option => option.id === planner.model);
   return <section className="settings-panel" aria-label="App settings">
     <nav className="settings-nav" aria-label="Settings sections">
-      {([['appearance', 'Appearance'], ['codex', 'ChatGPT & Codex'], ['shortcuts', 'Keyboard shortcuts'], ['general', 'General']] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
+      {([['general', 'General'], ['project', 'Project'], ['codex', 'ChatGPT & Codex'], ['shortcuts', 'Keyboard shortcuts']] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>)}
     </nav>
     <div className="settings-content">
-      {section === 'appearance' && <>
+      {section === 'general' && <>
+        <h2>Appearance</h2>
         <fieldset className="appearance-field"><legend>Mode</legend><div className="appearance-modes">{(['light', 'dark'] as const).map(mode => <button key={mode} className={appearance.mode === mode ? 'active' : ''} aria-pressed={appearance.mode === mode} onClick={() => onAppearance({ mode })}>{mode === 'light' ? <Sun size={17} /> : <Moon size={17} />}{mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></fieldset>
         <fieldset className="appearance-field"><legend>Accent color</legend><div className="accent-options">{accents.map(color => <button key={color.id} data-accent={color.id} className="accent-option" aria-pressed={appearance.accent === color.id} onClick={() => onAppearance({ accent: color.id })}><span className="accent-swatch" aria-hidden="true">{appearance.accent === color.id && <Check size={16} />}</span><span>{color.label}</span></button>)}</div></fieldset>
         <p className="form-hint">Changes apply immediately and stay on this device.</p>
       </>}
+      {section === 'project' && (project ? <ProjectSettings key={project.id} project={project} onSave={onProjectSave} onDelete={onProjectDelete} /> : <>
+        <h2>Project settings</h2><p className="form-hint">Create a project to edit its name, repository folder, and image.</p>
+        <div className="settings-buttons"><button className="primary-button" onClick={onProjectCreate}>Create project</button></div>
+      </>)}
       {section === 'codex' && <>
         <h2>ChatGPT connection</h2>
         <div className="settings-account"><span className={`planner-composer__dot${planner.connection?.connected ? ' is-connected' : ''}`} aria-hidden="true" /><div><strong>{planner.connection?.connected ? 'Connected to Codex' : 'Codex isn’t connected'}</strong>{planner.connection?.connected && <span>{planner.connection.account}</span>}</div></div>
@@ -43,7 +55,7 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         </div>
         <p className="form-hint">Your sign-in stays saved on this Mac. Credentials are kept separately from planner data and backups. Sign out removes the local session and requests remote revocation.</p>
         {!native && <p className="planner-composer__notice">Open the desktop app to connect Codex.</p>}
-        <label className="form-field">Default model<select value={planner.model} disabled={!planner.connection?.connected || busy} onChange={event => planner.setModel(event.currentTarget.value)}><option value="">Choose a model</option>{planner.connection?.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}{planner.model && !modelAvailable && <option value={planner.model} disabled>{planner.model} · unavailable</option>}</select></label>
+        <label className="form-field">Default model<Dropdown label="Default model" value={planner.model} disabled={!planner.connection?.connected || busy} onChange={value => planner.setModel(value)} options={[{ value: '', label: 'Choose a model' }, ...(planner.connection?.models.map(model => ({ value: model.id, label: model.name })) ?? []), ...(planner.model && !modelAvailable ? [{ value: planner.model, label: `${planner.model} · unavailable`, disabled: true }] : [])]} /></label>
         <p className="form-hint">Luna is preferred when available. Your selection is remembered; the app never changes models automatically.</p>
         <h2>Planning with AI</h2>
         <p className="form-hint">Plan project sends your prompt and full project planning context to Codex. Item actions send your prompt, selected item, and its related work. Review the proposal before applying changes.</p>
@@ -58,7 +70,7 @@ export function SettingsPanel({ appearance, onAppearance, planner, native, initi
         <div className="settings-buttons"><button className="secondary-button" disabled={backupBusy || busy || !canExport} onClick={() => onBackup('export')}>Export backup</button><button className="secondary-button" disabled={backupBusy || busy} onClick={() => onBackup('import')}>Import backup</button></div>
         <h2>System dictation</h2>
         <p className="form-hint">On macOS, enable Dictation in System Settings → Keyboard → Dictation. Focus a prompt and use your configured shortcut or Edit → Start Dictation. macOS handles speech recognition.</p>
-        <h2>About</h2><p className="form-hint">Codebase Planner · Version 0.1.0{!native && ' · Browser preview'}</p>
+        <h2>About</h2><p className="form-hint">Lumen · Version 0.1.0{!native && ' · Browser preview'}</p>
       </>}
       {section === 'codex' && <><div className="planner-composer__status" role="status" aria-live="polite">{planner.message}</div>{planner.error && <p className="planner-composer__error" role="alert">{planner.error}</p>}</>}
     </div>

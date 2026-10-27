@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Folded L logo</title>
+  <desc id="desc">A rounded cyan and blue ribbon forms an L with a diagonal fold and violet underside. Transparent background.</desc>
+  <defs>
+    <linearGradient id="stem" x1="100" y1="86" x2="256" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2CECF0"/>
+      <stop offset=".38" stop-color="#039EFF"/>
+      <stop offset=".75" stop-color="#064DF5"/>
+      <stop offset="1" stop-color="#1632C9"/>
+    </linearGradient>
+    <linearGradient id="underside" x1="140" y1="423" x2="466" y2="475" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2437ED"/>
+      <stop offset=".48" stop-color="#6825FA"/>
+      <stop offset="1" stop-color="#D62AF6"/>
+    </linearGradient>
+    <linearGradient id="foot" x1="285" y1="432" x2="381" y2="328" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1271F7"/>
+      <stop offset=".5" stop-color="#1CBDF5"/>
+      <stop offset="1" stop-color="#89F8F4"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="202" y1="354" x2="225" y2="381" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B6FFFA"/>
+      <stop offset=".38" stop-color="#43E5F5"/>
+      <stop offset="1" stop-color="#09A6EE"/>
+    </linearGradient>
+  </defs>
+  <path id="violet-underside" fill="url(#underside)" d="M177 432H460C473 432 479 442 469 452L446 475C434 487 419 484 402 484H151C136 484 127 474 127 463C127 447 153 432 177 432Z"/>
+  <path id="upright" fill="url(#stem)" d="M124 110 218 52C240 38 264 53 264 82V326C264 348 254 361 241 375L158 455C145 468 147 479 161 484H145C113 484 88 458 88 426V173C88 147 101 125 124 110Z"/>
+  <path id="horizontal-ribbon" fill="url(#foot)" d="M264 350H439C456 350 462 364 450 376L411 415C400 426 386 432 370 432H162L193 408C218 388 245 372 264 350Z"/>
+  <path id="diagonal-fold" fill="url(#fold)" d="M264 303V350C245 372 218 388 193 408L162 432C140 441 127 452 127 463C127 474 141 482 161 484C135 484 119 476 119 461C119 447 127 433 140 420L241 319C254 306 264 291 264 276Z"/>
+</svg>

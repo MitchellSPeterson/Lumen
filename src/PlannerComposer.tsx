@@ -3,6 +3,7 @@ import { ArrowUp, Square } from 'lucide-react';
 import type { ItemDetails, WorkItem } from './domain';
 import type { DraftItem, PlannerAction, PlannerDraft, Reference } from './planner';
 import { formatShortcut, matchesShortcut, shortcutAria } from './shortcuts';
+import { Dropdown } from './Dropdown';
 import './PlannerComposer.css';
 
 type Phase = 'idle' | 'connecting' | 'signing-in' | 'signing-out' | 'generating' | 'saving';
@@ -81,12 +82,12 @@ export function PlannerComposer({
 
   return (
     <section className="planner-composer" aria-label="Plan with Codex">
-      <select id="planner-action" className="planner-composer__select" aria-label="Planning action" value={action} disabled={busy} onChange={event => { setSubmitted(false); onActionChange(event.currentTarget.value as PlannerAction); }}>
-        <option value="project">Plan project</option>
-        <option value="clarify" disabled={!selectedTitle}>Clarify selected idea</option>
-        <option value="requirements" disabled={!selectedTitle}>Draft selected requirements</option>
-        <option value="tasks" disabled={!selectedTitle}>Break selected item into tasks</option>
-      </select>
+      <Dropdown id="planner-action" className="planner-composer__select" label="Planning action" value={action} disabled={busy} onChange={value => { setSubmitted(false); onActionChange(value as PlannerAction); }} options={[
+        { value: 'project', label: 'Plan project' },
+        { value: 'clarify', label: 'Clarify selected idea', disabled: !selectedTitle },
+        { value: 'requirements', label: 'Draft selected requirements', disabled: !selectedTitle },
+        { value: 'tasks', label: 'Break selected item into tasks', disabled: !selectedTitle },
+      ]} />
       <div className="planner-composer__input-box">
         <textarea
           id="planner-composer-prompt"
@@ -138,25 +139,25 @@ function PlanPreview({ draft, existingItems, disabled, onChange }: { draft: Plan
       <div className="planner-preview__heading"><strong>New item {index + 1}</strong><button type="button" className="text-button" onClick={() => removeItem(index)}>Remove item</button></div>
       <label>Title<input maxLength={300} value={item.title} onChange={event => editItem(index, { title: event.currentTarget.value })} /></label>
       <div className="planner-preview__row">
-        <label>Kind<select value={item.kind} onChange={event => editItem(index, { kind: event.currentTarget.value as DraftItem['kind'] })}>{['idea', 'feature', 'todo', 'bug'].map(kind => <option key={kind} value={kind}>{kind === 'todo' ? 'Task' : kind[0].toUpperCase() + kind.slice(1)}</option>)}</select></label>
-        <label>Priority<select value={item.priority} onChange={event => editItem(index, { priority: event.currentTarget.value as DraftItem['priority'] })}>{['low', 'normal', 'high'].map(priority => <option key={priority} value={priority}>{priority[0].toUpperCase() + priority.slice(1)}</option>)}</select></label>
-        <label>Plan<select value={item.planningLane ?? ''} onChange={event => editItem(index, { planningLane: (event.currentTarget.value || null) as DraftItem['planningLane'] })}><option value="">Unplanned</option>{['now', 'next', 'later'].map(lane => <option key={lane} value={lane}>{lane[0].toUpperCase() + lane.slice(1)}</option>)}</select></label>
+        <label>Kind<Dropdown label={`Kind for ${item.title || `new item ${index + 1}`}`} value={item.kind} disabled={disabled} onChange={value => editItem(index, { kind: value as DraftItem['kind'] })} options={['idea', 'feature', 'todo', 'bug'].map(kind => ({ value: kind, label: kind === 'todo' ? 'Task' : kind[0].toUpperCase() + kind.slice(1) }))} /></label>
+        <label>Priority<Dropdown label={`Priority for ${item.title || `new item ${index + 1}`}`} value={item.priority} disabled={disabled} onChange={value => editItem(index, { priority: value as DraftItem['priority'] })} options={['low', 'normal', 'high'].map(priority => ({ value: priority, label: priority[0].toUpperCase() + priority.slice(1) }))} /></label>
+        <label>Plan<Dropdown label={`Plan for ${item.title || `new item ${index + 1}`}`} value={item.planningLane ?? ''} disabled={disabled} onChange={value => editItem(index, { planningLane: (value || null) as DraftItem['planningLane'] })} options={[{ value: '', label: 'Unplanned' }, ...['now', 'next', 'later'].map(lane => ({ value: lane, label: lane[0].toUpperCase() + lane.slice(1) }))]} /></label>
       </div>
       <label>Tags, separated by commas<input value={item.tags.join(',')} onChange={event => editItem(index, { tags: event.currentTarget.value.split(',') })} /></label>
       <label>Notes<textarea maxLength={8000} value={item.notes} onChange={event => editItem(index, { notes: event.currentTarget.value })} /></label>
-      <ReferenceEditor label="Parent" value={item.parent} items={draft.items.filter(candidate => candidate.key !== item.key)} existingItems={existingItems} allowRoot onChange={parent => editItem(index, { parent })} />
+      <ReferenceEditor label="Parent" value={item.parent} items={draft.items.filter(candidate => candidate.key !== item.key)} existingItems={existingItems} allowRoot disabled={disabled} onChange={parent => editItem(index, { parent })} />
       <DetailsEditor value={item.details ?? {}} onChange={details => editItem(index, { details })} />
     </div>)}
     {draft.links.map((link, index) => <div className="planner-preview__item" key={index}>
       <div className="planner-preview__heading"><strong>Related link {index + 1}</strong><button type="button" className="text-button" onClick={() => onChange({ ...draft, links: draft.links.filter((_, position) => position !== index) })}>Remove link</button></div>
-      {(['source', 'target'] as const).map(side => <ReferenceEditor key={side} label={side === 'source' ? 'From' : 'To'} value={link[side]} items={draft.items} existingItems={existingItems} onChange={reference => { if (reference) onChange({ ...draft, links: draft.links.map((entry, position) => position === index ? { ...entry, [side]: reference } : entry) }); }} />)}
+      {(['source', 'target'] as const).map(side => <ReferenceEditor key={side} label={side === 'source' ? 'From' : 'To'} value={link[side]} items={draft.items} existingItems={existingItems} disabled={disabled} onChange={reference => { if (reference) onChange({ ...draft, links: draft.links.map((entry, position) => position === index ? { ...entry, [side]: reference } : entry) }); }} />)}
     </div>)}
     {!draft.items.length && !draft.links.length && !draft.update && <p>No proposed changes remain.</p>}
   </fieldset>;
 }
-function ReferenceEditor({ label, value, items, existingItems, allowRoot = false, onChange }: {
+function ReferenceEditor({ label, value, items, existingItems, allowRoot = false, disabled, onChange }: {
   label: string; value: Reference | null; items: DraftItem[]; existingItems: Pick<WorkItem, 'id' | 'title'>[];
-  allowRoot?: boolean; onChange(value: Reference | null): void;
+  allowRoot?: boolean; disabled: boolean; onChange(value: Reference | null): void;
 }) {
   const choices: { value: string; label: string; reference: Reference | null }[] = [
     ...(allowRoot ? [{ value: 'root', label: 'Project root', reference: null }] : []),
@@ -164,13 +165,10 @@ function ReferenceEditor({ label, value, items, existingItems, allowRoot = false
     ...existingItems.map(item => ({ value: `existing:${item.id}`, label: `${item.title} · Existing`, reference: { type: 'existing' as const, id: item.id } })),
   ];
   const selected = choices.find(choice => choice.reference === null ? value === null : value?.type === choice.reference.type && value.id === choice.reference.id);
-  return <label>{label}<select value={selected?.value ?? 'missing'} onChange={event => {
-    const choice = choices.find(option => option.value === event.currentTarget.value);
+  return <label>{label}<Dropdown label={label} value={selected?.value ?? 'missing'} disabled={disabled} onChange={value => {
+    const choice = choices.find(option => option.value === value);
     if (choice) onChange(choice.reference);
-  }}>
-    {!selected && <option value="missing" disabled>Missing item (regenerate)</option>}
-    {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-  </select></label>;
+  }} options={[...(!selected ? [{ value: 'missing', label: 'Missing item (regenerate)', disabled: true }] : []), ...choices]} /></label>;
 }
 function DetailsEditor({ value, onChange }: { value: ItemDetails; onChange(value: ItemDetails): void }) {
   return <details className="planner-preview__details" open={!!(value.feature || value.bug)}><summary>Structured planning details</summary>

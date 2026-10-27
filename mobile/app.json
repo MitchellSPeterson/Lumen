@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Lumen",
+    "slug": "lumen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "lumen",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.mitchell.lumen",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.mitchell.lumen",
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/withSceneLifecycle",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#9ed8fa",
+          "image": "./assets/images/icon.png",
+          "imageWidth": 96
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "00a797bd-bd6a-4fe9-b7de-78aa1427775b"
+      }
+    },
+    "owner": "mitchellspdev"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Codebase Planner",
+  "productName": "Lumen",
   "version": "0.1.0",
   "identifier": "com.codebaseplanner.desktop",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Codebase Planner",
+        "title": "Lumen",
         "width": 1440,
         "height": 940,
         "minWidth": 900,

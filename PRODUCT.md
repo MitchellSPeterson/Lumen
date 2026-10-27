@@ -1,4 +1,4 @@
-# Codebase Planner
+# Lumen
 
 <!-- impeccable:product-schema 1 -->
 

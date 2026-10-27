@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -8,6 +9,8 @@ pub struct Project {
     pub name: String,
     pub folder: String,
     pub created_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -78,6 +81,13 @@ impl Default for Workspace {
     }
 }
 
+fn valid_project_image(image: &str) -> bool {
+    if image.len() > 2_800_000 { return false; }
+    let Some((mime, data)) = image.split_once(";base64,") else { return false };
+    matches!(mime, "data:image/png" | "data:image/jpeg" | "data:image/webp" | "data:image/gif")
+        && !data.is_empty() && STANDARD.decode(data).is_ok()
+}
+
 impl Workspace {
     pub fn validate(&self) -> Result<(), String> {
         if self.version != 2 {
@@ -90,6 +100,9 @@ impl Workspace {
                 || project.name.trim().is_empty()
             {
                 return Err("Workspace contains an invalid project.".into());
+            }
+            if project.image.as_deref().is_some_and(|image| !valid_project_image(image)) {
+                return Err("Workspace contains an invalid project image.".into());
             }
         }
 
@@ -185,7 +198,7 @@ fn valid_details(value: &serde_json::Value) -> bool {
 
 pub fn from_backup(bytes: &[u8]) -> Result<Workspace, String> {
     let mut value: serde_json::Value = serde_json::from_slice(bytes)
-        .map_err(|_| "This is not a Codebase Planner backup.".to_string())?;
+        .map_err(|_| "This is not a Lumen backup.".to_string())?;
     let version = value.get("version").and_then(|value| value.as_u64());
     if !matches!(version, Some(1 | 2)) { return Err("Unsupported workspace version.".into()); }
     if version == Some(1) {
@@ -207,6 +220,9 @@ pub fn from_backup(bytes: &[u8]) -> Result<Workspace, String> {
         }
     }
     if value.get("activeProjectId").is_none() { return Err("Backup is missing the active project field.".into()); }
+    if value.get("projects").and_then(|value| value.as_array()).is_some_and(|projects| projects.iter().any(|project| project.get("image").is_some_and(|image| !image.is_string()))) {
+        return Err("Backup contains an invalid project image.".into());
+    }
     if value.get("items").and_then(|value| value.as_array()).is_some_and(|items| items.iter().any(|item| item.get("parentId").is_none() || item.get("planningLane").is_none() || item.get("details").is_none())) {
         return Err("Backup contains an invalid item.".into());
     }

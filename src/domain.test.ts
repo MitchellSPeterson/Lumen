@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  captureIdea, defaultView, emptyWorkspace, groupItems, importCopies, itemSearchText, matchingWithAncestors, moveItem, normalizeWorkspace, reorderItem, validateWorkspace, validParent,
+  captureItem, defaultView, emptyWorkspace, groupItems, importCopies, itemSearchText, matchingWithAncestors, moveItem, normalizeWorkspace, reorderItem, validateWorkspace, validParent,
   type Project, type WorkItem, type Workspace,
 } from './domain';
 
@@ -25,6 +25,25 @@ const rejects = (change: (value: Workspace) => void, message: string) => {
 };
 
 describe('validateWorkspace', () => {
+  it('preserves project images through backups and imported copies, including legacy projects without images', () => {
+    const value = workspace();
+    for (const format of ['png', 'jpeg', 'webp', 'gif']) {
+      value.projects[0].image = `data:image/${format};base64,YQ==`;
+      const restored = normalizeWorkspace(JSON.parse(JSON.stringify(value)));
+      expect(restored.projects[0].image).toBe(value.projects[0].image);
+      expect(importCopies(emptyWorkspace(), restored).projects[0].image).toBe(value.projects[0].image);
+      expect(restored.projects[1].image).toBeUndefined();
+    }
+  });
+
+  it('rejects unsafe, malformed, empty, and oversized project images', () => {
+    for (const image of [null, 3, '', 'https://example.com/image.png', 'data:image/svg+xml;base64,YQ==', 'data:image/png;base64,', 'data:image/png;base64,YQ', 'data:image/png;base64,YR==', 'data:image/png;base64,YQ==\n', `data:image/png;base64,${'A'.repeat(2_800_000)}`]) {
+      const value = workspace();
+      Object.assign(value.projects[0], { image });
+      expect(() => normalizeWorkspace(value)).toThrow('invalid project image');
+    }
+  });
+
   it('accepts an empty backup and a valid hierarchy within one project', () => {
     expect(() => validateWorkspace(emptyWorkspace())).not.toThrow();
     expect(() => validateWorkspace(workspace())).not.toThrow();
@@ -162,13 +181,23 @@ describe('planning workflows', () => {
     rejects(value => { Object.assign(value.items[0], { planningLane: 'urgent' }); }, 'invalid item');
   });
 
-  it('captures trimmed inbox ideas without changing input', () => {
-    const value = workspace(), before = structuredClone(value);
-    const result = captureIdea(value, 'p1', '  Improve navigation  ');
-    expect(value).toEqual(before);
-    expect(result.workspace.items.find(item => item.id === result.itemId)).toMatchObject({ title: 'Improve navigation', kind: 'idea', parentId: null, planningLane: null, details: {} });
-    expect(() => captureIdea(value, 'missing', 'Title')).toThrow('Project');
-    expect(() => captureIdea(value, 'p1', ' ')).toThrow('empty');
+  it('captures trimmed unplanned items of every kind without changing input', () => {
+    for (const kind of ['idea', 'todo', 'feature', 'bug'] as const) {
+      const value = workspace();
+      value.items.push({ ...item('root-later'), order: 8 }, { ...item('child'), parentId: 'a', order: 99 });
+      const before = structuredClone(value);
+      const result = captureItem(value, 'p1', '  Improve navigation  ', kind);
+      const captured = result.workspace.items.find(value => value.id === result.itemId)!;
+      expect(value).toEqual(before);
+      expect(captured).toMatchObject({ title: 'Improve navigation', kind, parentId: null, order: 9, planningLane: null, details: {} });
+      expect(result.workspace.items).toHaveLength(value.items.length + 1);
+    }
+    const value = workspace();
+    const defaulted = captureItem(value, 'p1', 'Default kind');
+    expect(defaulted.workspace.items.find(value => value.id === defaulted.itemId)).toMatchObject({ kind: 'idea', order: 1 });
+    expect(() => captureItem(value, 'missing', 'Title')).toThrow('Project');
+    expect(() => captureItem(value, 'p1', ' ')).toThrow('empty');
+    expect(() => captureItem(value, 'p1', 'Title', 'invalid' as 'idea')).toThrow('kind');
   });
 
   it('moves and reorders branches without breaking links or unrelated projects', () => {

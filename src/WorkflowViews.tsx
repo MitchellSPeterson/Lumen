@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from 'react';
 import { Bug, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDot, GripVertical, Lightbulb, Sparkles } from 'lucide-react';
 import { kindLabels, matchingWithAncestors, planningLaneLabels, statusLabels, type ItemKind, type ProjectView, type Status, type WorkItem } from './domain';
+import { Dropdown } from './Dropdown';
 
 export function KindIcon({ kind, size = 15 }: { kind: ItemKind; size?: number }) {
   switch (kind) {
@@ -61,7 +62,7 @@ export function Outline({ items, matchingIds, filtered, selecting, view, selecte
           <button className={`tree-disclosure ${children ? '' : 'invisible'}`} aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${item.title}`} aria-expanded={!collapsed} tabIndex={children ? 0 : -1} disabled={filtered} onClick={() => onCollapse(item.id)}>{collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</button>
           <button className="outline-title" onClick={() => onSelect(item.id)}><span className={`kind-icon ${item.kind}`}><KindIcon kind={item.kind} /></span><span className={item.status === 'done' ? 'completed' : ''}>{item.title}</span></button>
           {item.kind === 'idea' ? <span className="status-label idea-status">Idea</span> : <button className={`status-label status-toggle ${item.status}`} aria-label={`${item.status === 'done' ? 'Reopen' : 'Complete'} ${item.title}`} title={item.status === 'done' ? 'Mark as to do' : 'Mark as done'} onClick={() => onStatus(item.id, item.status === 'done' ? 'todo' : 'done')}><StatusIcon status={item.status} />{statusLabels[item.status]}</button>}
-          <select className={`planning-label row-plan ${item.planningLane ?? ''}`} aria-label={`Plan for ${item.title}`} value={item.planningLane ?? ''} onChange={event => onPlan(item.id, (event.target.value || null) as WorkItem['planningLane'])}><option value="">Unplanned</option>{Object.entries(planningLaneLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
+          <Dropdown className={`planning-label row-plan ${item.planningLane ?? ''}`} label={`Plan for ${item.title}`} value={item.planningLane ?? ''} onChange={value => onPlan(item.id, (value || null) as WorkItem['planningLane'])} options={[{ value: '', label: 'Unplanned' }, ...Object.entries(planningLaneLabels).map(([value, label]) => ({ value, label }))]} />
           {dropTarget === item.id && <span className="nest-hint">Move inside</span>}
         </div>
         {children && !collapsed && branch(item.id, depth + 1)}
@@ -96,7 +97,7 @@ export function Board({ items, matchingIds, selectedId, onSelect, onStatus }: Bo
       {cards.map(item => <article key={item.id} className={`board-card ${selectedId === item.id ? 'selected' : ''}`} draggable onDragStart={event => { event.dataTransfer.setData('text/plain', item.id); event.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => setDropStatus(null)}>
         <button className="board-card-title" onClick={() => onSelect(item.id)}><span className={`kind-icon ${item.kind}`}><KindIcon kind={item.kind} /></span><span>{item.title}</span></button>
         <p>{item.parentId ? items.find(parent => parent.id === item.parentId)?.title : kindLabels[item.kind]}</p>
-        <div className="board-card-bottom"><span className={`planning-label ${item.planningLane ?? ''}`}>{item.planningLane ? planningLaneLabels[item.planningLane] : 'Unplanned'}</span><select aria-label={`Status of ${item.title}`} value={item.status} onChange={event => { const value = statuses.find(candidate => candidate === event.target.value); if (value) onStatus(item.id, value); }}>{statuses.map(value => <option key={value} value={value}>{statusLabels[value]}</option>)}</select></div>
+        <div className="board-card-bottom"><span className={`planning-label ${item.planningLane ?? ''}`}>{item.planningLane ? planningLaneLabels[item.planningLane] : 'Unplanned'}</span><Dropdown label={`Status of ${item.title}`} value={item.status} onChange={selected => { const value = statuses.find(candidate => candidate === selected); if (value) onStatus(item.id, value); }} options={statuses.map(value => ({ value, label: statusLabels[value] }))} /></div>
       </article>)}
       {!cards.length && <p className="board-empty">No items here</p>}
     </section>;

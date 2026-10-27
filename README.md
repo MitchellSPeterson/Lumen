@@ -1,4 +1,4 @@
-# Codebase Planner
+# Lumen
 
 Local desktop workspace for ideas, features, tasks, and bugs. List, map, and status board share one set of items. Built with Tauri 2, React, TypeScript, React Flow, and SQLite.
 
@@ -15,7 +15,7 @@ For a browser preview, run `npm run dev` and open http://127.0.0.1:1420. Browser
 
 ## Use
 
-- Create a project, optionally associate a repository folder, and capture a thought in **Capture an idea**. **Save idea** or Enter sends it to Inbox; Cmd/Ctrl+N focuses capture.
+- Create a project, optionally associate a repository folder, and press Cmd/Ctrl+N to capture an item. Use the icon picker to choose Idea, Feature, Task, or Bug, then press Enter to save. Ideas go to Inbox; other types appear in All items. Cmd/Ctrl+K opens search with a **Capture new item** command.
 - **Inbox** holds top-level ideas. Open an idea and choose **Make a feature** or **Make a task**, then choose **Now**, **Next**, or **Later**. Notes and links stay with the item. You can also move it inside another item under **Organize & move**.
 - **List** is the default for new projects. Choose a planning horizon directly on a row and click its status to complete or reopen work. Use **Select items** to reveal grouping checkboxes. Expand branches, drag rows inside another item, or drop between rows to reorder. The **Inside** selector and **Move up/down** buttons under **Organize & move** offer keyboard alternatives.
 - Select sibling checkboxes and choose **Group into feature**. Existing branches and links stay intact.
@@ -56,7 +56,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 npm run tauri build -- --bundles app
 ```
 
-The unsigned app bundle is `src-tauri/target/release/bundle/macos/Codebase Planner.app`. No developer certificate is required to run this local build. Distribution signing and notarization are not configured.
+The unsigned app bundle is `src-tauri/target/release/bundle/macos/Lumen.app`. No developer certificate is required to run this local build. Distribution signing and notarization are not configured.
 
 Vite uses its runner config loader and a polling watcher to avoid native filesystem watcher stalls on this Mac. Package and Cargo lockfiles record the installed versions.
 

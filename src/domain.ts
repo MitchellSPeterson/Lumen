@@ -6,7 +6,7 @@ export interface AcceptanceCriterion { id: string; text: string; checked: boolea
 export interface FeatureDetails { problem: string; expectedBehavior: string; acceptanceCriteria: AcceptanceCriterion[]; openQuestions: string }
 export interface BugDetails { stepsToReproduce: string; expectedBehavior: string; actualBehavior: string }
 export interface ItemDetails { feature?: FeatureDetails; bug?: BugDetails }
-export interface Project { id: string; name: string; folder: string; createdAt: string }
+export interface Project { id: string; name: string; folder: string; createdAt: string; image?: string }
 export interface WorkItem {
   id: string; projectId: string; parentId: string | null; order: number;
   title: string; kind: ItemKind; status: Status; priority: Priority; tags: string[];
@@ -65,7 +65,7 @@ function validDetails(value: unknown): value is ItemDetails {
   return true;
 }
 export function normalizeWorkspace(value: unknown): Workspace {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('This is not a Codebase Planner backup.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('This is not a Lumen backup.');
   const raw = value as Record<string, unknown>;
   if (raw.version !== 1 && raw.version !== 2) throw new Error('Unsupported workspace version.');
   const normalized = structuredClone(raw);
@@ -82,12 +82,22 @@ export function normalizeWorkspace(value: unknown): Workspace {
   validateWorkspace(normalized);
   return normalized;
 }
+export const projectImageMaxLength = 2_800_000;
+export function validProjectImage(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > projectImageMaxLength) return false;
+  const prefix = /^data:image\/(png|jpeg|webp|gif);base64,/.exec(value);
+  if (!prefix) return false;
+  const data = value.slice(prefix[0].length);
+  if (!data) return false;
+  try { return btoa(atob(data)) === data; } catch { return false; }
+}
 export function validateWorkspace(value: unknown): asserts value is Workspace {
   const w = value as Workspace;
-  if (!w || w.version !== 2 || !Array.isArray(w.projects) || !Array.isArray(w.items) || !Array.isArray(w.links) || !w.views || typeof w.views !== 'object' || Array.isArray(w.views)) throw new Error('This is not a version 2 Codebase Planner backup.');
+  if (!w || w.version !== 2 || !Array.isArray(w.projects) || !Array.isArray(w.items) || !Array.isArray(w.links) || !w.views || typeof w.views !== 'object' || Array.isArray(w.views)) throw new Error('This is not a version 2 Lumen backup.');
   const projectIds = new Set<string>(), itemIds = new Set<string>(), linkIds = new Set<string>(), pairs = new Set<string>();
   for (const p of w.projects) {
     if (!p || typeof p.id !== 'string' || !p.id || projectIds.has(p.id) || typeof p.name !== 'string' || !p.name.trim() || typeof p.folder !== 'string' || typeof p.createdAt !== 'string') throw new Error('Backup contains an invalid project.');
+    if (p.image !== undefined && !validProjectImage(p.image)) throw new Error('Backup contains an invalid project image.');
     projectIds.add(p.id);
   }
   for (const i of w.items) {
@@ -125,11 +135,12 @@ export function importCopies(current: Workspace, incoming: Workspace): Workspace
   return { ...current, projects: [...current.projects, ...copiedProjects], items: [...current.items, ...incoming.items.map(i => ({ ...i, id: items.get(i.id)!, projectId: projects.get(i.projectId)!, parentId: i.parentId ? items.get(i.parentId)! : null }))], links: [...current.links, ...incoming.links.map(l => ({ ...l, id: crypto.randomUUID(), projectId: projects.get(l.projectId)!, sourceId: items.get(l.sourceId)!, targetId: items.get(l.targetId)! }))], views, activeProjectId: copiedProjects[0]?.id ?? current.activeProjectId };
 }
 
-export function captureIdea(workspace: Workspace, projectId: string, title: string): { workspace: Workspace; itemId: string } {
+export function captureItem(workspace: Workspace, projectId: string, title: string, kind: ItemKind = 'idea'): { workspace: Workspace; itemId: string } {
   if (!workspace.projects.some(project => project.id === projectId)) throw new Error('Project does not exist.');
-  if (!title.trim()) throw new Error('Idea title cannot be empty.');
+  if (!['idea', 'todo', 'feature', 'bug'].includes(kind)) throw new Error('Invalid item kind.');
+  if (!title.trim()) throw new Error('Item title cannot be empty.');
   const siblings = workspace.items.filter(item => item.projectId === projectId && item.parentId === null);
-  const item = { ...createItem(projectId, 'idea', null, Math.max(-1, ...siblings.map(item => item.order)) + 1), title: title.trim() };
+  const item = { ...createItem(projectId, kind, null, Math.max(-1, ...siblings.map(item => item.order)) + 1), title: title.trim() };
   return { workspace: { ...workspace, items: [...workspace.items, item] }, itemId: item.id };
 }
 export function moveItem(workspace: Workspace, id: string, parentId: string | null, beforeId?: string | null): Workspace {

@@ -2,7 +2,7 @@ use crate::model::{Project, ProjectView, RelatedLink, Viewport, WorkItem, Worksp
 use rusqlite::{params, Connection};
 use std::{collections::HashMap, fs, path::Path, time::Duration};
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 fn database_error(error: impl std::fmt::Display) -> String {
     format!("Workspace database error: {error}")
@@ -24,7 +24,7 @@ fn migrate(connection: &mut Connection) -> Result<(), String> {
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(database_error)?;
     if version > SCHEMA_VERSION {
-        return Err("This workspace database was created by a newer version of Codebase Planner.".into());
+        return Err("This workspace database was created by a newer version of Lumen.".into());
     }
     if version == SCHEMA_VERSION {
         return Ok(());
@@ -85,12 +85,17 @@ fn migrate(connection: &mut Connection) -> Result<(), String> {
          PRAGMA user_version = 1;"
         ).map_err(database_error)?;
     }
-    transaction.execute_batch(
+    if version < 2 { transaction.execute_batch(
         "ALTER TABLE items ADD COLUMN planning_lane TEXT;
          ALTER TABLE items ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}';
          UPDATE view_state SET mode = 'outline' WHERE mode = 'list';
          UPDATE metadata SET value = '2' WHERE key = 'schema_version';
          PRAGMA user_version = 2;"
+    ).map_err(database_error)?; }
+    transaction.execute_batch(
+        "ALTER TABLE projects ADD COLUMN image TEXT;
+         UPDATE metadata SET value = '3' WHERE key = 'schema_version';
+         PRAGMA user_version = 3;"
     ).map_err(database_error)?;
     transaction.commit().map_err(database_error)
 }
@@ -108,8 +113,8 @@ pub fn save(connection: &mut Connection, workspace: &Workspace) -> Result<(), St
 
     for (index, project) in workspace.projects.iter().enumerate() {
         transaction.execute(
-            "INSERT INTO projects(id, name, folder, created_at, sort_index) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![project.id, project.name, project.folder, project.created_at, index as i64],
+            "INSERT INTO projects(id, name, folder, created_at, sort_index, image) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![project.id, project.name, project.folder, project.created_at, index as i64, project.image],
         ).map_err(database_error)?;
     }
     for (index, item) in workspace.items.iter().enumerate() {
@@ -153,10 +158,10 @@ pub fn load(connection: &Connection) -> Result<Workspace, String> {
     let connection = &*transaction;
     let projects = {
         let mut statement = connection.prepare(
-            "SELECT id, name, folder, created_at FROM projects ORDER BY sort_index"
+            "SELECT id, name, folder, created_at, image FROM projects ORDER BY sort_index"
         ).map_err(database_error)?;
         let projects = statement.query_map([], |row| Ok(Project {
-            id: row.get(0)?, name: row.get(1)?, folder: row.get(2)?, created_at: row.get(3)?,
+            id: row.get(0)?, name: row.get(1)?, folder: row.get(2)?, created_at: row.get(3)?, image: row.get(4)?,
         })).map_err(database_error)?.collect::<Result<Vec<_>, _>>().map_err(database_error)?;
         projects
     };
@@ -243,7 +248,7 @@ mod tests {
     fn sample() -> Workspace {
         let project = Project {
             id: "project-a".into(), name: "Alpha".into(), folder: "/tmp/alpha".into(),
-            created_at: "2026-10-01T00:00:00Z".into(),
+            created_at: "2026-10-01T00:00:00Z".into(), image: None,
         };
         let item = |id: &str, parent_id: Option<&str>, project_id: &str| WorkItem {
             id: id.into(), project_id: project_id.into(), parent_id: parent_id.map(str::to_owned),
@@ -266,6 +271,52 @@ mod tests {
             })]),
             active_project_id: Some("project-a".into()),
         }
+    }
+
+    #[test]
+    fn project_images_roundtrip_and_invalid_images_preserve_snapshot() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate(&mut connection).unwrap();
+        let mut original = sample();
+        for format in ["png", "jpeg", "webp", "gif"] {
+            original.projects[0].image = Some(format!("data:image/{format};base64,YQ=="));
+            save(&mut connection, &original).unwrap();
+            let loaded = load(&connection).unwrap();
+            assert_eq!(loaded.projects[0].image, original.projects[0].image);
+            let restored = crate::model::from_backup(&serde_json::to_vec(&loaded).unwrap()).unwrap();
+            assert_eq!(restored.projects[0].image, original.projects[0].image);
+        }
+        let oversized = format!("data:image/png;base64,{}", "A".repeat(2_800_000));
+        for image in ["", "https://example.com/image.png", "data:image/svg+xml;base64,YQ==", "data:image/png;base64,", "data:image/png;base64,YQ", "data:image/png;base64,YR==", "data:image/png;base64,YQ==\n", oversized.as_str()] {
+            let mut invalid = original.clone(); invalid.projects[0].image = Some(image.into());
+            assert!(save(&mut connection, &invalid).is_err());
+            assert!(crate::model::from_backup(&serde_json::to_vec(&invalid).unwrap()).is_err());
+            assert_eq!(load(&connection).unwrap().projects[0].image, original.projects[0].image);
+        }
+        let legacy = crate::model::from_backup(&serde_json::to_vec(&sample()).unwrap()).unwrap();
+        assert_eq!(legacy.projects[0].image, None);
+        assert!(serde_json::to_value(&legacy).unwrap()["projects"][0].get("image").is_none());
+        for invalid in [serde_json::Value::Null, serde_json::json!(3)] {
+            let mut backup = serde_json::to_value(&sample()).unwrap(); backup["projects"][0]["image"] = invalid;
+            assert!(crate::model::from_backup(&serde_json::to_vec(&backup).unwrap()).is_err());
+        }
+    }
+
+    #[test]
+    fn v2_database_migrates_projects_and_image_removal_persists() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate(&mut connection).unwrap();
+        save(&mut connection, &sample()).unwrap();
+        connection.execute_batch("ALTER TABLE projects DROP COLUMN image; UPDATE metadata SET value = '2' WHERE key = 'schema_version'; PRAGMA user_version = 2;").unwrap();
+        migrate(&mut connection).unwrap();
+        let mut workspace = load(&connection).unwrap();
+        assert_eq!(workspace.projects[0].image, None);
+        assert_eq!(workspace.items[0].planning_lane.as_deref(), Some("next"));
+        workspace.projects[0].image = Some("data:image/png;base64,YQ==".into());
+        save(&mut connection, &workspace).unwrap();
+        workspace.projects[0].image = None;
+        save(&mut connection, &workspace).unwrap();
+        assert_eq!(load(&connection).unwrap().projects[0].image, None);
     }
 
     #[test]
@@ -306,7 +357,7 @@ mod tests {
         let mut workspace = sample();
         workspace.projects.push(Project {
             id: "project-b".into(), name: "Beta".into(), folder: "/tmp/beta".into(),
-            created_at: "2026-10-01T00:00:00Z".into(),
+            created_at: "2026-10-01T00:00:00Z".into(), image: None,
         });
         workspace.items[0].project_id = "project-b".into();
         assert!(workspace.validate().unwrap_err().contains("cross-project parent"));
@@ -323,7 +374,7 @@ mod tests {
         let path = directory.path().join("planner.sqlite");
         let mut connection = open(&path).unwrap();
         save(&mut connection, &sample()).unwrap();
-        connection.execute_batch("ALTER TABLE items DROP COLUMN planning_lane; ALTER TABLE items DROP COLUMN details_json; UPDATE view_state SET mode = 'list'; UPDATE metadata SET value = '1' WHERE key = 'schema_version'; PRAGMA user_version = 1;").unwrap();
+        connection.execute_batch("ALTER TABLE projects DROP COLUMN image; ALTER TABLE items DROP COLUMN planning_lane; ALTER TABLE items DROP COLUMN details_json; UPDATE view_state SET mode = 'list'; UPDATE metadata SET value = '1' WHERE key = 'schema_version'; PRAGMA user_version = 1;").unwrap();
         drop(connection);
         let connection = open(&path).unwrap();
         let loaded = load(&connection).unwrap();
@@ -335,8 +386,8 @@ mod tests {
         assert_eq!(loaded.links.len(), 1);
         assert_eq!(loaded.views["project-a"].mode, "outline");
         assert_eq!(loaded.views["project-a"].collapsed, vec!["root"]);
-        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
-        assert_eq!(connection.query_row("SELECT value FROM metadata WHERE key = 'schema_version'", [], |row| row.get::<_, String>(0)).unwrap(), "2");
+        assert_eq!(connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
+        assert_eq!(connection.query_row("SELECT value FROM metadata WHERE key = 'schema_version'", [], |row| row.get::<_, String>(0)).unwrap(), "3");
     }
 
     #[test]
@@ -386,9 +437,9 @@ mod tests {
     #[test]
     fn future_schema_is_rejected_without_changes() {
         let mut connection = Connection::open_in_memory().unwrap();
-        connection.pragma_update(None, "user_version", 3).unwrap();
+        connection.pragma_update(None, "user_version", 4).unwrap();
         assert!(migrate(&mut connection).unwrap_err().contains("newer version"));
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
 }

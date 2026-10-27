@@ -16,9 +16,11 @@ export const chooseFolder = (): Promise<string | null> => native ? invoke('choos
 export const inspectFolder = (folder: string): Promise<boolean> => native ? invoke('inspect_folder', { folder }) : Promise.resolve(true);
 export async function exportWorkspace(workspace: Workspace): Promise<string | null> {
   if (native) return invoke('export_workspace');
-  const url = URL.createObjectURL(new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' }));
+  const backup = new Blob([JSON.stringify(workspace, null, 2)], { type: 'application/json' });
+  if (backup.size > 10 * 1024 * 1024) throw new Error('Backup exceeds the 10 MB limit. Use smaller project images or remove unused data before exporting.');
+  const url = URL.createObjectURL(backup);
   const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = 'codebase-planner-backup.json'; anchor.click();
+  anchor.href = url; anchor.download = 'lumen-backup.json'; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return anchor.download;
 }
